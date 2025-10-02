@@ -1,7 +1,6 @@
 streamlit
 shap
-streamlit
-shap
+matplotlib
 pandas
 numpy
 scikit-learn
