@@ -23,14 +23,8 @@ def load_model():
     model = XGBRegressor()
     model.load_model("xgb_pen.json")
 
-    bst = model.get_booster()
-    full_cfg = json.loads(bst.save_config())   # ① 整份配置转 dict
-    learner_cfg = full_cfg["learner"]
-    param = learner_cfg.get("parameters", {})
-    if param.get("base_score", "") == "":
-        param["base_score"] = "0.5"
-    full_cfg["learner"] = learner_cfg          # ② 把修改写回
-    bst.load_config(json.dumps(full_cfg))      # ③ 重新加载
+    base_score = 0.5
+    model.get_booster().set_param('base_score', base_score)
 
     return model
 
