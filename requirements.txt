@@ -4,6 +4,6 @@ scikit-learn
 matplotlib
 plotly
 seaborn
-shap==0.45.0
-xgboost==2.0.3
-numpy==1.26.4
+shap
+xgboost
+numpy
