@@ -58,7 +58,7 @@ if btn:
 
     # ---------- SHAP 可解释性 ----------
    explainer = shap.Explainer(model, X_user)
-   shap_values = explainer(X_user)
+shap_values = explainer(X_user)
     st.subheader("特征贡献（SHAP值）")
     st.pyplot(shap.plots.bar(shap_values, show=False))
 
