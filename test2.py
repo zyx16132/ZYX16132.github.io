@@ -24,6 +24,9 @@ def load_model():
     return model
 
 model = load_model()
+booster = model.get_booster()
+if booster.attr("base_score") in (None, ""):
+    booster.set_attr(base_score="0.5")
 explainer = shap.TreeExplainer(model)
 
 # ---------- 中文特征名 ----------
