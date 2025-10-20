@@ -19,19 +19,18 @@ st.markdown("---")
 # ---------- 加载模型 ----------
 @st.cache_resource
 def load_model():
-    import json, shap
+    import json, shaz
     model = XGBRegressor()
     model.load_model("xgb_pen.json")
 
     bst = model.get_booster()
-    # 1. 取出底层参数字典
-    learner_cfg = json.loads(bst.save_config())["learner"]
+    full_cfg = json.loads(bst.save_config())   # ① 整份配置转 dict
+    learner_cfg = full_cfg["learner"]
     param = learner_cfg.get("parameters", {})
-    # 2. 硬写 base_score
-    param["base_score"] = "0.5"
-    # 3. 重新构造 Booster，让字典生效
-    new_config = json.dumps({"learner": learner_cfg, "version": bst.save_config()["version"]})
-    bst.load_config(new_config)
+    if param.get("base_score", "") == "":
+        param["base_score"] = "0.5"
+    full_cfg["learner"] = learner_cfg          # ② 把修改写回
+    bst.load_config(json.dumps(full_cfg))      # ③ 重新加载
 
     return model
 
