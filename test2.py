@@ -19,7 +19,7 @@ st.markdown("---")
 # ---------- 加载模型 ----------
 @st.cache_resource
 def load_model():
-    import json, shaz
+    import json
     model = XGBRegressor()
     model.load_model("xgb_pen.json")
 
