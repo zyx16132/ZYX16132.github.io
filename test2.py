@@ -16,7 +16,6 @@ st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
-
 # ---------- 加载模型 ----------
 @st.cache_resource
 def load_model():
@@ -24,18 +23,27 @@ def load_model():
     model = XGBRegressor()
     model.load_model("xgb_pen.json")
 
-    # 1. 强制落盘-重载，生成完整的 learner_model_param
+    # 补全 Booster 参数
     bst = model.get_booster()
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-        bst.save_model(f.name)          # 写盘
-        bst.load_model(f.name)          # 读盘 → 字典补全
-        os.unlink(f.name)               # 清理临时文件
+        bst.save_model(f.name)
+        bst.load_model(f.name)
+        os.unlink(f.name)
 
     return model
 
 model = load_model()
-model.get_booster().set_param('base_score', 0.5)
-explainer = shap.TreeExplainer(model)
+
+# ---------- 固定随机种子 ----------
+import random, os
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+os.environ['PYTHONHASHSEED'] = str(SEED)
+
+# ---------- SHAP Explainer ----------
+explainer = shap.TreeExplainer(model.get_booster())
+
 
 # ---------- 中文特征名 ----------
 feat_cols = ['Class', 'pH', 'Water content(%)', 'm(g)', 'T(°C)',
