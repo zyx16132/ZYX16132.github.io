@@ -22,11 +22,15 @@ st.markdown("---")
 def load_model():
     model = XGBRegressor()
     model.load_model("xgb_pen.json")  # 确保模型文件在同一目录
-    bst = model.get_booster()
-    cfg = json.loads(bst.save_config())                   
-    if cfg["learner"]["parameters"].get("base_score", "") == "":
-        cfg["learner"]["parameters"]["base_score"] = "0.5" 
-        bst.load_config(json.dumps(cfg))                
+
+bst = model.get_booster()
+    cfg = json.loads(bst.save_config())
+    # 安全链：learner → parameters → base_score
+    param = cfg.get("learner", {}).get("parameters", {})
+    if param.get("base_score", "") == "":
+        param["base_score"] = "0.5"
+        bst.load_config(json.dumps(cfg))
+    
     return model
 
 model = load_model()
