@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from xgboost import XGBRegressor
 import plotly.graph_objects as go
 import seaborn as sns
-import json
 
 plt.rcParams['font.size'] = 12
 sns.set_style("whitegrid")
@@ -20,17 +19,19 @@ st.markdown("---")
 # ---------- 加载模型 ----------
 @st.cache_resource
 def load_model():
+    import json
     model = XGBRegressor()
-    model.load_model("xgb_pen.json")  # 确保模型文件在同一目录
+    model.load_model("xgb_pen.json")
 
-bst = model.get_booster()
+    bst = model.get_booster()
     cfg = json.loads(bst.save_config())
-    # 安全链：learner → parameters → base_score
+
+    # 安全链式获取 base_score
     param = cfg.get("learner", {}).get("parameters", {})
     if param.get("base_score", "") == "":
         param["base_score"] = "0.5"
         bst.load_config(json.dumps(cfg))
-    
+
     return model
 
 model = load_model()
