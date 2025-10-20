@@ -57,8 +57,8 @@ if btn:
     st.plotly_chart(fig_gauge, use_container_width=True)
 
     # ---------- SHAP 可解释性 ----------
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer(X_user)
+   explainer = shap.Explainer(model, X_user)
+   shap_values = explainer(X_user)
     st.subheader("特征贡献（SHAP值）")
     st.pyplot(shap.plots.bar(shap_values, show=False))
 
