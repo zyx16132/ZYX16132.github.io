@@ -1,15 +1,16 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import shap
-import matplotlib.pyplot as plt
-from xgboost import XGBRegressor
+import joblib
 import plotly.graph_objects as go
-import seaborn as sns
 
-plt.rcParams['font.size'] = 12
-sns.set_style("whitegrid")
+# 固定随机种子，保证预测一致
+import random, os
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+os.environ['PYTHONHASHSEED'] = str(SEED)
 
 # ---------- 页面配置 ----------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
@@ -19,37 +20,21 @@ st.markdown("---")
 # ---------- 加载模型 ----------
 @st.cache_resource
 def load_model():
-    import shap, tempfile, os
-    model = XGBRegressor()
-    model.load_model("xgb_pen.json")
-
-    # 补全 Booster 参数
-    bst = model.get_booster()
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-        bst.save_model(f.name)
-        bst.load_model(f.name)
-        os.unlink(f.name)
-
+    model = joblib.load("xgb_best.pkl")  # 加载 pickle 模型
     return model
 
 model = load_model()
 
-# ---------- 固定随机种子 ----------
-import random, os
-SEED = 42
-random.seed(SEED)
-np.random.seed(SEED)
-os.environ['PYTHONHASHSEED'] = str(SEED)
-
 # ---------- SHAP Explainer ----------
-explainer = shap.TreeExplainer(model.get_booster())
+explainer = shap.TreeExplainer(model.get_booster())  # 传 Booster 避免报错
 
-
-# ---------- 中文特征名 ----------
+# ---------- 特征名 ----------
 feat_cols = ['Class', 'pH', 'Water content(%)', 'm(g)', 'T(°C)',
              'HR(°C/min)', 'V(L)', 't(min)', 'Conc(mol/L)']
-feat_cols_cn = ['Types of antibiotics', 'Initial environmental pH', 'Water content(%)', 'Quality(g)', 'Reaction temperature(°C)',
-                'Heating rate(°C/min)', 'Reactor volume(L)', 'Reaction time(min)', 'Acid concentration(mol/L)']
+
+feat_cols_cn = ['Types of antibiotics', 'Initial environmental pH', 'Water content(%)',
+                'Quality(g)', 'Reaction temperature(°C)', 'Heating rate(°C/min)',
+                'Reactor volume(L)', 'Reaction time(min)', 'Acid concentration(mol/L)']
 
 # ---------- 侧边栏输入 ----------
 st.sidebar.header("Please enter parameters")
@@ -61,7 +46,6 @@ btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # ---------- 主界面 ----------
 if btn:
-    # 构造 DataFrame
     X_user = pd.DataFrame([inputs])
     pred = model.predict(X_user)[0]
 
@@ -80,7 +64,5 @@ if btn:
                'threshold': {'line': {'color': "red", 'width': 4},
                              'thickness': 0.75, 'value': pred}}))
     st.plotly_chart(fig_gauge, use_container_width=True)
-
-
 else:
     st.info("Please enter the parameters in the left column and click the prediction button")
