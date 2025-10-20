@@ -24,14 +24,14 @@ def load_model():
     model.load_model("xgb_pen.json")
 
     bst = model.get_booster()
-    # ① JSON 层面补一次（兼容旧代码）
-    cfg = json.loads(bst.save_config())
-    param = cfg.get("learner", {}).get("parameters", {})
-    if param.get("base_score", "") == "":
-        param["base_score"] = "0.5"
-        bst.load_config(json.dumps(cfg))
-    # ② 核心：再写回 XGBoost 参数表，SHAP 只读这里
-    bst.set_param('base_score', 0.5)
+    # 1. 取出底层参数字典
+    learner_cfg = json.loads(bst.save_config())["learner"]
+    param = learner_cfg.get("parameters", {})
+    # 2. 硬写 base_score
+    param["base_score"] = "0.5"
+    # 3. 重新构造 Booster，让字典生效
+    new_config = json.dumps({"learner": learner_cfg, "version": bst.save_config()["version"]})
+    bst.load_config(new_config)
 
     return model
 
