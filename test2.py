@@ -19,12 +19,16 @@ st.markdown("---")
 # ---------- 加载模型 ----------
 @st.cache_resource
 def load_model():
-    import json
+    import shap, tempfile, os
     model = XGBRegressor()
     model.load_model("xgb_pen.json")
 
-    base_score = 0.5
-    model.get_booster().set_param('base_score', base_score)
+    bst = model.get_booster()
+    bst.set_param('base_score', 0.5)          # ① 写参数
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        bst.save_model(f.name)                # ② 强制落盘
+        bst.load_model(f.name)                # ③ 重新加载
+        os.unlink(f.name)                     # 清理临时文件
 
     return model
 
