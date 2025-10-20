@@ -23,16 +23,17 @@ def load_model():
     model = XGBRegressor()
     model.load_model("xgb_pen.json")
 
+    # 1. 强制落盘-重载，生成完整的 learner_model_param
     bst = model.get_booster()
-    bst.set_param('base_score', 0.5)          # ① 写参数
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-        bst.save_model(f.name)                # ② 强制落盘
-        bst.load_model(f.name)                # ③ 重新加载
-        os.unlink(f.name)                     # 清理临时文件
+        bst.save_model(f.name)          # 写盘
+        bst.load_model(f.name)          # 读盘 → 字典补全
+        os.unlink(f.name)               # 清理临时文件
 
     return model
 
 model = load_model()
+model.get_booster().set_param('base_score', 0.5)
 explainer = shap.TreeExplainer(model)
 
 # ---------- 中文特征名 ----------
