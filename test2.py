@@ -1,37 +1,27 @@
+# app.py
 import streamlit as st
 import pandas as pd
-import numpy as np
 import shap
-import joblib
 import plotly.graph_objects as go
-
-# 固定随机种子，保证预测一致
-import random, os
-SEED = 42
-random.seed(SEED)
-np.random.seed(SEED)
-os.environ['PYTHONHASHSEED'] = str(SEED)
+import joblib
 
 # ---------- 页面配置 ----------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
-# ---------- 加载模型 ----------
+# ---------- 加载模型和 SHAP Explainer ----------
 @st.cache_resource
-def load_model():
-    model = joblib.load("xgb_best.pkl")  # 加载 pickle 模型
+def load_model_and_explainer():
+    model = joblib.load("xgb_best.pkl")
+    # 这里暂时不传 X 给 explainer，预测时再用 shap.Explainer
     return model
 
-model = load_model()
-
-# ---------- SHAP Explainer ----------
-explainer = shap.TreeExplainer(model.get_booster())  # 传 Booster 避免报错
+model = load_model_and_explainer()
 
 # ---------- 特征名 ----------
 feat_cols = ['Class', 'pH', 'Water content(%)', 'm(g)', 'T(°C)',
              'HR(°C/min)', 'V(L)', 't(min)', 'Conc(mol/L)']
-
 feat_cols_cn = ['Types of antibiotics', 'Initial environmental pH', 'Water content(%)',
                 'Quality(g)', 'Reaction temperature(°C)', 'Heating rate(°C/min)',
                 'Reactor volume(L)', 'Reaction time(min)', 'Acid concentration(mol/L)']
@@ -46,10 +36,11 @@ btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # ---------- 主界面 ----------
 if btn:
+    # 构造 DataFrame
     X_user = pd.DataFrame([inputs])
-    pred = model.predict(X_user)[0]
 
-    # 显示结果
+    # 预测
+    pred = model.predict(X_user)[0]
     st.markdown(f"### Predict degradation rate： `{pred:.3f}`")
 
     # 仪表盘
@@ -64,5 +55,12 @@ if btn:
                'threshold': {'line': {'color': "red", 'width': 4},
                              'thickness': 0.75, 'value': pred}}))
     st.plotly_chart(fig_gauge, use_container_width=True)
+
+    # ---------- SHAP 可解释性 ----------
+    explainer = shap.Explainer(model, X_user)  # 这里传 X_user
+    shap_values = explainer(X_user)
+    st.subheader("特征贡献（SHAP值）")
+    st.pyplot(shap.plots.bar(shap_values, show=False))
+
 else:
     st.info("Please enter the parameters in the left column and click the prediction button")
