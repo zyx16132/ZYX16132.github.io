@@ -19,18 +19,19 @@ st.markdown("---")
 # ---------- 加载模型 ----------
 @st.cache_resource
 def load_model():
-    import json
+    import json, shap
     model = XGBRegressor()
     model.load_model("xgb_pen.json")
 
     bst = model.get_booster()
+    # ① JSON 层面补一次（兼容旧代码）
     cfg = json.loads(bst.save_config())
-
-    # 安全链式获取 base_score
     param = cfg.get("learner", {}).get("parameters", {})
     if param.get("base_score", "") == "":
         param["base_score"] = "0.5"
         bst.load_config(json.dumps(cfg))
+    # ② 核心：再写回 XGBoost 参数表，SHAP 只读这里
+    bst.set_param('base_score', 0.5)
 
     return model
 
