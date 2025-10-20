@@ -36,10 +36,7 @@ btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # ---------- 主界面 ----------
 if btn:
-    # 构造 DataFrame
     X_user = pd.DataFrame([inputs])
-
-    # 预测
     pred = model.predict(X_user)[0]
     st.markdown(f"### Predict degradation rate： `{pred:.3f}`")
 
@@ -55,12 +52,6 @@ if btn:
                'threshold': {'line': {'color': "red", 'width': 4},
                              'thickness': 0.75, 'value': pred}}))
     st.plotly_chart(fig_gauge, use_container_width=True)
-
-    # ---------- SHAP 可解释性 ----------
-    explainer = shap.Explainer(model, X_user)   # 确保和上面对齐
-    shap_values = explainer(X_user)
-    st.subheader("特征贡献（SHAP值）")
-    st.pyplot(shap.plots.bar(shap_values, show=False))
 
 else:
     st.info("Please enter the parameters in the left column and click the prediction button")
