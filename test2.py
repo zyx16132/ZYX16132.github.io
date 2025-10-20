@@ -16,6 +16,7 @@ st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
+
 # ---------- 加载模型 ----------
 @st.cache_resource
 def load_model():
