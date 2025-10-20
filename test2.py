@@ -21,12 +21,13 @@ st.markdown("---")
 def load_model():
     model = XGBRegressor()
     model.load_model("xgb_pen.json")  # 确保模型文件在同一目录
+    booster = model.get_booster()
+    if booster.attr("base_score") in (None, ""):
+        booster.set_attr(base_score="0.5")
+        booster.save_config()    
     return model
 
 model = load_model()
-booster = model.get_booster()
-if booster.attr("base_score") in (None, ""):
-    booster.set_attr(base_score="0.5")
 explainer = shap.TreeExplainer(model)
 
 # ---------- 中文特征名 ----------
