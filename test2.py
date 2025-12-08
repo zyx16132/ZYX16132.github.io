@@ -22,9 +22,9 @@ model = load_model_and_explainer()
 # ---------- 特征名 ----------
 feat_cols = ['Class', 'pH', 'Water content(%)', 'm(g)', 'T(°C)',
              'HR(°C/min)', 'V(L)', 't(min)', 'Conc(mol/L)']
-feat_cols_cn = ['Types of antibiotics', 'Initial environmental pH', 'Water content(%)',
-                'Quality(g)', 'Reaction temperature(°C)', 'Heating rate(°C/min)',
-                'Reactor volume(L)', 'Reaction time(min)', 'Acid concentration(mol/L)']
+feat_cols_cn = ['Types of antibiotics（Take an integer from [0, 9]）', 'Initial environmental pH [4.6,7.5]', 'Water content(%) [5.35,95.93]',
+                'Quality(g) [1,300]', 'Reaction temperature(°C) [22,250]', 'Heating rate(°C/min) [0.19,14]',
+                'Reactor volume(L) [0.05,1]', 'Reaction time(min) [0,180]', 'Acid concentration(mol/L) [0,0.6]']
 
 # ---------- 侧边栏输入 ----------
 st.sidebar.header("Please enter parameters")
