@@ -42,86 +42,26 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
                 X_encoded[col] = X_encoded[col].map(self.mapping_[col]).fillna(self.global_mean_)
         return X_encoded
 
-# 加载模型、编码器和特征列
+# 加载模型
 bundle = joblib.load("xgb_pipeline.joblib")
 model = bundle["model"]
 encoder = bundle["encoder"]
 feature_cols = bundle["feature_cols"]
 
-# 加载训练数据用于获取特征范围
-df = pd.read_excel("data.xlsx")
-X_train = df[feature_cols].copy()
-X_train['Antibiotic'] = df['Antibiotic']
-
-# 获取每列最小值和最大值（数值列）
-num_cols = [c for c in feature_cols if c != 'Antibiotic']
-feature_ranges = {col: (X_train[col].min(), X_train[col].max()) for col in num_cols}
-
 st.title("🧪 Degradation rate prediction system")
 
 # 用户输入
-antibiotic = st.selectbox(
-    "Type of Antibiotic",
-    ["CEP", "AMP", "其他"]  # 可根据训练数据修改
-)
+antibiotic = st.selectbox("Type of Antibiotic", ["CEP", "AMP", "其他"])
+ph = st.number_input("pH", value=5.0)
+water_content = st.number_input("Water content(%)", value=70.0)
+m = st.number_input("m(g)", value=80.0)
+T = st.number_input("T(°C)", value=120.0)
+V = st.number_input("V(L)", value=0.23)
+t = st.number_input("t(min)", value=64.0)
+HCL = st.number_input("HCL Conc(mol/L)", value=0.05)
+NaOH = st.number_input("NaOH Conc(mol/L)", value=0.01)
 
-ph = st.number_input(
-    f"pH ({feature_ranges['pH'][0]} ~ {feature_ranges['pH'][1]})",
-    min_value=float(feature_ranges['pH'][0]),
-    max_value=float(feature_ranges['pH'][1]),
-    value=float((feature_ranges['pH'][0]+feature_ranges['pH'][1])/2)
-)
-
-water_content = st.number_input(
-    f"Water content(%) ({feature_ranges['Water content(%)'][0]} ~ {feature_ranges['Water content(%)'][1]})",
-    min_value=float(feature_ranges['Water content(%)'][0]),
-    max_value=float(feature_ranges['Water content(%)'][1]),
-    value=float((feature_ranges['Water content(%)'][0]+feature_ranges['Water content(%)'][1])/2)
-)
-
-m = st.number_input(
-    f"m(g) ({feature_ranges['m(g)'][0]} ~ {feature_ranges['m(g)'][1]})",
-    min_value=float(feature_ranges['m(g)'][0]),
-    max_value=float(feature_ranges['m(g)'][1]),
-    value=float((feature_ranges['m(g)'][0]+feature_ranges['m(g)'][1])/2)
-)
-
-T = st.number_input(
-    f"T(°C) ({feature_ranges['T(°C)'][0]} ~ {feature_ranges['T(°C)'][1]})",
-    min_value=float(feature_ranges['T(°C)'][0]),
-    max_value=float(feature_ranges['T(°C)'][1]),
-    value=float((feature_ranges['T(°C)'][0]+feature_ranges['T(°C)'][1])/2)
-)
-
-V = st.number_input(
-    f"V(L) ({feature_ranges['V(L)'][0]} ~ {feature_ranges['V(L)'][1]})",
-    min_value=float(feature_ranges['V(L)'][0]),
-    max_value=float(feature_ranges['V(L)'][1]),
-    value=float((feature_ranges['V(L)'][0]+feature_ranges['V(L)'][1])/2)
-)
-
-t = st.number_input(
-    f"t(min) ({feature_ranges['t(min)'][0]} ~ {feature_ranges['t(min)'][1]})",
-    min_value=float(feature_ranges['t(min)'][0]),
-    max_value=float(feature_ranges['t(min)'][1]),
-    value=float((feature_ranges['t(min)'][0]+feature_ranges['t(min)'][1])/2)
-)
-
-HCL = st.number_input(
-    f"HCL Conc(mol/L) ({feature_ranges['HCL Conc(mol/L)'][0]} ~ {feature_ranges['HCL Conc(mol/L)'][1]})",
-    min_value=float(feature_ranges['HCL Conc(mol/L)'][0]),
-    max_value=float(feature_ranges['HCL Conc(mol/L)'][1]),
-    value=float((feature_ranges['HCL Conc(mol/L)'][0]+feature_ranges['HCL Conc(mol/L)'][1])/2)
-)
-
-NaOH = st.number_input(
-    f"NaOH Conc(mol/L) ({feature_ranges['NaOH Conc(mol/L)'][0]} ~ {feature_ranges['NaOH Conc(mol/L)'][1]})",
-    min_value=float(feature_ranges['NaOH Conc(mol/L)'][0]),
-    max_value=float(feature_ranges['NaOH Conc(mol/L)'][1]),
-    value=float((feature_ranges['NaOH Conc(mol/L)'][0]+feature_ranges['NaOH Conc(mol/L)'][1])/2)
-)
-
-# 构建用户输入 DataFrame
+# 构建 DataFrame（只包含模型特征，不要 Degradation）
 X_user = pd.DataFrame({
     "pH": [ph],
     "Water content(%)": [water_content],
@@ -134,11 +74,12 @@ X_user = pd.DataFrame({
     "Antibiotic": [antibiotic]
 })
 
-# 编码分类变量
+# 使用训练时的 encoder 转换
 X_user_enc = encoder.transform(X_user)
 
 # 预测
 pred = model.predict(X_user_enc)[0]
 
 st.write(f"Predicted Degradation: {pred:.2f}")
+
 
