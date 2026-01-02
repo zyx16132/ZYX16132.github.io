@@ -1,10 +1,10 @@
 # app.py
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 import joblib
 from sklearn.base import BaseEstimator, TransformerMixin
-import numpy as np
 
 # ---------------- 自定义编码器 ----------------
 class TargetEncoderCV(BaseEstimator, TransformerMixin):
@@ -43,7 +43,7 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
                 X_encoded[col] = X_encoded[col].map(self.mapping_[col]).fillna(self.global_mean_)
         return X_encoded
 
-# ---------------- Streamlit 配置 ----------------
+# ---------------- Streamlit ----------------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
@@ -51,7 +51,7 @@ st.markdown("---")
 # ---------------- 加载 pipeline ----------------
 @st.cache_resource
 def load_pipeline():
-    # ⚠️ 自定义类需要在加载前先定义，否则 pickle 无法找到 TargetEncoderCV
+    # 注意这里必须先定义 TargetEncoderCV
     pipe = joblib.load("xgb_pipeline_groupCV.pkl")
     return pipe
 
@@ -69,7 +69,7 @@ feat_cols_cn = ['Type of Antibiotic', 'Initial environmental pH [2,12]', 'Water 
 st.sidebar.header("Please enter parameters")
 inputs = {}
 
-# Antibiotic 类别自动获取
+# 自动获取 Antibiotic 类别
 antibiotics_list = list(pipe.named_steps['encoder'].mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox(feat_cols_cn[0], antibiotics_list)
 
@@ -92,11 +92,10 @@ btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # ---------------- 主界面 ----------------
 if btn:
-    # ⚠️ 核心修改：列顺序严格和训练时一致
     X_user = pd.DataFrame([inputs], columns=feat_cols)
 
     try:
-        # pipeline 自动处理编码
+        # pipeline 自动处理编码和预测
         pred = pipe.predict(X_user)[0]
         st.markdown(f"### Predicted Degradation rate: `{pred:.3f}`")
 
@@ -112,8 +111,9 @@ if btn:
                    'threshold': {'line': {'color': "red", 'width': 4},
                                  'thickness': 0.75, 'value': pred}}))
         st.plotly_chart(fig_gauge, use_container_width=True)
+
     except ValueError as e:
-        st.error(f"Prediction failed: {e}\n\n⚠️ Please make sure all inputs are valid and feature names match the training data.")
+        st.error(f"Prediction failed: {e}\n\n⚠️ Please make sure the inputs match the features used in training.")
 
 else:
     st.info("Please enter the parameters in the left column and click the prediction button")
