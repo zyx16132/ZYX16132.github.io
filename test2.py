@@ -6,14 +6,19 @@ import joblib
 import plotly.graph_objects as go
 
 # =============================
-# 1️⃣ 加载 pipeline
+# 1️⃣ 加载模型 bundle（无需自定义类）
 # =============================
 @st.cache_resource
 def load_pipeline():
+    # 直接用你上传的 xgb_pipeline_no_class.joblib
     bundle = joblib.load("xgb_pipeline_no_class.joblib")
-    return bundle["model"], bundle["encoder_mapping"], bundle["feature_cols"], bundle["cat_cols"]
+    return bundle
 
-model, encoder_mapping, feature_cols, cat_cols = load_pipeline()
+bundle = load_pipeline()
+model = bundle["model"]
+encoder_mapping = bundle["encoder_mapping"]
+feature_cols = bundle["feature_cols"]  # 数值列
+cat_cols = bundle["cat_cols"]          # 分类列，如 ['Antibiotic']
 
 # =============================
 # 2️⃣ 页面布局
@@ -21,11 +26,10 @@ model, encoder_mapping, feature_cols, cat_cols = load_pipeline()
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
-
 st.sidebar.header("Please enter parameters")
 
 # =============================
-# 3️⃣ 特征范围和默认值（与训练集一致）
+# 3️⃣ 数值特征范围与默认值
 # =============================
 feature_ranges = {
     'pH': (2.0, 12.0, 6.08),
@@ -41,17 +45,21 @@ feature_ranges = {
 inputs = {}
 
 # =============================
-# 4️⃣ 分类特征
+# 4️⃣ 分类特征输入（selectbox）
 # =============================
 for cat in cat_cols:
-    cat_options = list(encoder_mapping[cat].keys())
-    inputs[cat] = st.sidebar.selectbox(f"{cat}", cat_options)
+    options = list(encoder_mapping[cat].keys())
+    inputs[cat] = st.sidebar.selectbox(f"{cat}", options)
 
 # =============================
-# 5️⃣ 数值特征
+# 5️⃣ 数值特征输入
 # =============================
 for feat in feature_cols:
-    min_val, max_val, default = feature_ranges[feat]
+    if feat not in feature_ranges:
+        st.warning(f"Feature '{feat}' not found in feature_ranges, using default 0.0")
+        min_val, max_val, default = 0.0, 100.0, 0.0
+    else:
+        min_val, max_val, default = feature_ranges[feat]
     inputs[feat] = st.sidebar.number_input(
         label=feat,
         min_value=float(min_val),
@@ -60,33 +68,36 @@ for feat in feature_cols:
         format="%.3f"
     )
 
+# =============================
+# 6️⃣ Predict 按钮
+# =============================
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # =============================
-# 6️⃣ 预测逻辑
+# 7️⃣ 预测逻辑
 # =============================
 if predict_btn:
-    # 构造 DataFrame
+    # 构造用户输入 DataFrame
     X_user = pd.DataFrame([inputs])
 
-    # 分类列映射字典（安全 Target Encoding）
+    # 分类列映射
     for cat in cat_cols:
-        mapping_dict = encoder_mapping[cat]  # 已经是字典
-        X_user[cat] = X_user[cat].map(mapping_dict).fillna(np.mean(list(mapping_dict.values())))
+        X_user[cat] = X_user[cat].map(encoder_mapping[cat])
+        # 若映射为空则用平均值填充
+        if X_user[cat].isna().any():
+            X_user[cat] = X_user[cat].fillna(np.mean(list(encoder_mapping[cat].values())))
 
-    # 对齐特征顺序
+    # 确保列顺序与训练一致
     final_cols = feature_cols + cat_cols
     X_user = X_user[final_cols]
 
     # 预测
     pred = model.predict(X_user)[0]
 
-    # =============================
-    # 7️⃣ 显示结果
-    # =============================
-    st.markdown(f"### ✅ Predicted degradation rate: **{pred:.2f}%**")
+    # 显示结果
+    st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
 
-    # 仪表盘显示
+    # 仪表盘
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred,
@@ -104,10 +115,10 @@ if predict_btn:
     st.plotly_chart(fig, use_container_width=True)
 
 else:
-    st.info("Please enter all parameters on the left and click Predict.")
+    st.info("Please enter the parameters on the left and click Predict.")
 
 st.markdown("---")
 st.markdown(
-    "*This application uses the final trained XGBoost model and the same "
-    "target encoding strategy as the training pipeline to ensure full reproducibility.*"
+    "*This application uses the final trained XGBoost model "
+    "and the same target encoding as the training pipeline.*"
 )
