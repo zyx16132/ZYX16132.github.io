@@ -8,3 +8,4 @@ seaborn
 joblib
 scikit-learn
 pandas
+openpyxl
