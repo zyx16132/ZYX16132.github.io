@@ -5,7 +5,7 @@ import joblib
 import plotly.graph_objects as go
 
 # =============================
-# 1️⃣ 加载模型 bundle
+# 1️⃣ Load model pipeline
 # =============================
 @st.cache_resource
 def load_pipeline():
@@ -15,11 +15,11 @@ def load_pipeline():
 bundle = load_pipeline()
 model = bundle["model"]
 encoder_mapping = bundle["encoder_mapping"]
-feature_cols = bundle["feature_cols"]  # 数值列
-cat_cols = bundle["cat_cols"]          # 分类列，如 ['Antibiotic']
+feature_cols = bundle["feature_cols"]  # numeric features
+cat_cols = bundle["cat_cols"]          # categorical features, e.g., ['Antibiotic']
 
 # =============================
-# 2️⃣ 页面布局
+# 2️⃣ Page setup
 # =============================
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
@@ -27,9 +27,8 @@ st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
 # =============================
-# 3️⃣ 左侧顺序（随意），直接英文显示
+# 3️⃣ Sidebar input order (can be arbitrary)
 # =============================
-# sidebar_order 可随意排列，但 key 必须是训练时英文列名
 sidebar_order = [
     "Antibiotic", "pH", "Water content(%)", "m(g)", "T(°C)",
     "V(L)", "t(min)", "HCL Conc(mol/L)", "NaOH Conc(mol/L)"
@@ -49,13 +48,18 @@ feature_ranges = {
 inputs = {}
 
 # =============================
-# 4️⃣ 左侧输入
+# 4️⃣ Categorical feature inputs
 # =============================
 for col in sidebar_order:
-    if col in cat_cols:  # 分类
+    if col in cat_cols:
         options = list(encoder_mapping[col].keys())
         inputs[col] = st.sidebar.selectbox(col, options)
-    elif col in feature_cols:  # 数值
+
+# =============================
+# 5️⃣ Numeric feature inputs
+# =============================
+for col in sidebar_order:
+    if col in feature_cols:
         min_val, max_val, default = feature_ranges[col]
         inputs[col] = st.sidebar.number_input(
             label=col,
@@ -66,31 +70,33 @@ for col in sidebar_order:
         )
 
 # =============================
-# 5️⃣ Predict 按钮
+# 6️⃣ Predict button
 # =============================
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # =============================
-# 6️⃣ 预测逻辑
+# 7️⃣ Prediction logic
 # =============================
 if predict_btn:
+    # Convert inputs to DataFrame
     X_user = pd.DataFrame([inputs])
 
-    # 分类映射
+    # Map categorical features
     for cat in cat_cols:
         X_user[cat] = X_user[cat].map(encoder_mapping[cat])
         if X_user[cat].isna().any():
             X_user[cat] = X_user[cat].fillna(np.mean(list(encoder_mapping[cat].values())))
 
-    # 按训练列顺序
+    # Ensure strict column order for the model
     X_user_final = X_user[feature_cols + cat_cols]
 
-    # 预测
+    # Prediction
     pred = model.predict(X_user_final)[0]
 
+    # Display result
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
 
-    # 仪表盘
+    # Gauge chart
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred,
