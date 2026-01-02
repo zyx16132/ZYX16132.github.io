@@ -4,33 +4,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import joblib
 
-from sklearn.base import BaseEstimator, TransformerMixin
-import pandas as pd
-import numpy as np
-
-class PipelineTargetEncoder(BaseEstimator, TransformerMixin):
-    def __init__(self, cat_cols=None, n_splits=5, random_state=42):
-        self.cat_cols = cat_cols
-        self.n_splits = n_splits
-        self.random_state = random_state
-        self.global_mean_ = None
-        self.mapping_ = dict()
-
-    def fit(self, X, y=None, groups=None):
-        # ⚠️ 预测阶段不会调用 fit，这里只为 pickle 兼容
-        return self
-
-    def transform(self, X):
-        X_encoded = X.copy()
-        for col in self.mapping_:
-            if col in X_encoded.columns:
-                X_encoded[col] = X_encoded[col].map(
-                    self.mapping_[col]
-                ).fillna(self.global_mean_)
-        return X_encoded
-
 # ======================================================
-# Streamlit 页面配置
+# 页面配置
 # ======================================================
 st.set_page_config(
     page_title="Degradation rate prediction",
@@ -41,20 +16,25 @@ st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
 # ======================================================
-# 加载 pipeline（encoder + XGB 已全部包含在内）
+# 加载模型 & encoder
 # ======================================================
 @st.cache_resource
-def load_pipeline():
-    return joblib.load("xgb_pipeline_groupCV.pkl")
+def load_model():
+    return joblib.load("xgb_best.pkl")
+
+@st.cache_resource
+def load_encoder():
+    return joblib.load("encoder.pkl")
 
 try:
-    pipe = load_pipeline()
+    model = load_model()
+    encoder = load_encoder()
 except Exception as e:
-    st.error(f"❌ Pipeline loading failed:\n\n{e}")
+    st.error(f"❌ Model or encoder loading failed:\n\n{e}")
     st.stop()
 
 # ======================================================
-# 特征列（⚠️ 必须与训练时完全一致）
+# 特征列（必须与训练完全一致）
 # ======================================================
 FEATURE_COLS = [
     'Antibiotic',
@@ -86,9 +66,7 @@ FEATURE_LABELS = [
 st.sidebar.header("Please enter parameters")
 inputs = {}
 
-# ---------- Antibiotic 下拉框 ----------
-# ⚠️ encoder 已在 pipeline 内，这里只是为了给用户选项
-encoder = pipe.named_steps['encoder']
+# ---------- Antibiotic ----------
 antibiotic_options = list(encoder.mapping_['Antibiotic'].index)
 
 inputs['Antibiotic'] = st.sidebar.selectbox(
@@ -118,16 +96,18 @@ for col, label in zip(FEATURE_COLS[1:], FEATURE_LABELS[1:]):
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # ======================================================
-# 主界面预测
+# 预测
 # ======================================================
 if predict_btn:
     try:
-        # 构建严格匹配训练特征顺序的 DataFrame
+        # 构建 DataFrame
         X_user = pd.DataFrame([inputs], columns=FEATURE_COLS)
 
-        # ⚠️ 直接用 pipeline.predict
-        # encoder + XGB 会自动完成
-        pred = pipe.predict(X_user)[0]
+        # === 关键一步：Antibiotic 编码 ===
+        X_user_encoded = encoder.transform(X_user)
+
+        # 预测
+        pred = model.predict(X_user_encoded)[0]
 
         st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}`")
 
