@@ -2,7 +2,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import shap
 import plotly.graph_objects as go
 import joblib
 
@@ -15,7 +14,7 @@ st.markdown("---")
 @st.cache_resource
 def load_model_and_encoder():
     model = joblib.load("xgb_best.pkl")
-    encoder = joblib.load("encoder.pkl")  # 训练时保存的 TargetEncoderCV
+    encoder = joblib.load("encoder.pkl")
     return model, encoder
 
 model, encoder = load_model_and_encoder()
@@ -37,12 +36,24 @@ feat_cols_cn = ['Type of Antibiotic',
 st.sidebar.header("Please enter parameters")
 inputs = {}
 
-# Antibiotic 用 selectbox，其余用 number_input
-antibiotics_list = ['Antibiotic A', 'Antibiotic B', 'Antibiotic C']  # 这里根据你的训练数据改
+# 自动获取 Antibiotic 类别
+antibiotics_list = list(encoder.mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox(feat_cols_cn[0], antibiotics_list)
 
+# 数值列默认值用 encoder.global_mean_（或者自己设定训练均值）
+default_values = {
+    'pH': 6.08,
+    'Water content(%)': 69.9,
+    'm(g)': 79.36,
+    'T(°C)': 117.8,
+    'V(L)': 0.23,
+    't(min)': 64.59,
+    'HCL Conc(mol/L)': 0.06,
+    'NaOH Conc(mol/L)': 0.01
+}
+
 for col, col_cn in zip(feat_cols[1:], feat_cols_cn[1:]):
-    inputs[col] = st.sidebar.number_input(col_cn, value=0.0, format="%.3f")
+    inputs[col] = st.sidebar.number_input(col_cn, value=default_values[col], format="%.3f")
 
 btn = st.sidebar.button("🔍 Predict degradation rate")
 
