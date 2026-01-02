@@ -5,33 +5,30 @@ import numpy as np
 import joblib
 import plotly.graph_objects as go
 
-# =============================
-# 1️⃣ 加载模型 bundle（无需自定义类）
-# =============================
+# -------------------- 0. 保险栓：统一大小写/空格（可选） --------------------
+def safe_encode(val, mapping):
+    val = str(val).upper().strip()
+    return mapping.get(val, np.mean(list(mapping.values())))
+
+# -------------------- 1. 加载 bundle --------------------
 @st.cache_resource
 def load_pipeline():
     return joblib.load("xgb_pipeline_no_class.joblib")
 
 bundle = load_pipeline()
-
-# 取出各个组件
 model   = bundle["model"]
 encoder_mapping = bundle["encoder_mapping"]
-feature_cols    = bundle["feature_cols"]   # 数值列
-cat_cols        = bundle["cat_cols"]       # 分类列
-train_columns   = bundle["train_columns"]  # ✅ 关键：训练时的完整列顺序
+feature_cols    = bundle["feature_cols"]
+cat_cols        = bundle["cat_cols"]
+train_columns   = bundle["train_columns"]   # 训练时的列顺序
 
-# =============================
-# 2️⃣ 页面布局
-# =============================
+# -------------------- 2. 页面布局 --------------------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
-# =============================
-# 3️⃣ 侧边栏输入顺序与范围
-# =============================
+# -------------------- 3. 侧边栏顺序 & 数值范围 --------------------
 sidebar_order = [
     "Antibiotic", "pH", "Water content(%)", "m(g)", "T(°C)",
     "V(L)", "t(min)", "HCL Conc(mol/L)", "NaOH Conc(mol/L)"
@@ -50,17 +47,13 @@ feature_ranges = {
 
 inputs = {}
 
-# =============================
-# 4️⃣ 分类特征输入（selectbox）
-# =============================
+# -------------------- 4. 分类特征（动态全部抗生素） --------------------
 for col in sidebar_order:
     if col in cat_cols:
-        options = list(encoder_mapping[col].keys())
+        options = sorted(encoder_mapping[col].keys())  # 与训练字典 100% 同源
         inputs[col] = st.sidebar.selectbox(col, options)
 
-# =============================
-# 5️⃣ 数值特征输入（number_input）
-# =============================
+# -------------------- 5. 数值特征 --------------------
 for col in sidebar_order:
     if col in feature_cols:
         min_val, max_val, default = feature_ranges[col]
@@ -72,14 +65,10 @@ for col in sidebar_order:
             format="%.3f"
         )
 
-# =============================
-# 6️⃣ Predict 按钮
-# =============================
+# -------------------- 6. Predict 按钮 --------------------
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
-# =============================
-# 7️⃣ 预测逻辑（完全对齐 train_columns）
-# =============================
+# -------------------- 7. 预测逻辑（对齐 train_columns） --------------------
 if predict_btn:
     # 1. 按训练列顺序建空表
     X_user = pd.DataFrame(columns=train_columns)
@@ -88,25 +77,21 @@ if predict_btn:
     for col, val in inputs.items():
         X_user.loc[0, col] = val
 
-    # 3. 分类映射
+    # 3. 分类映射（带保险栓，可删）
     for cat in cat_cols:
-        mapping = encoder_mapping[cat]
-        X_user[cat] = X_user[cat].map(mapping)
-        X_user[cat] = X_user[cat].fillna(np.mean(list(mapping.values())))
+        X_user[cat] = X_user[cat].map(lambda x: safe_encode(x, encoder_mapping[cat]))
 
-    # 4. 转数值
+    # 4. 统一数值型
     X_user = X_user.astype(float)
 
-    # 5. 按训练顺序切片 → 列数/顺序 100% 一致
+    # 5. 按训练顺序切片
     X_user_final = X_user[train_columns]
 
-    # 6. 预测（不会再报 feature mismatch）
+    # 6. 预测
     pred = model.predict(X_user_final.values)[0]
 
-    # 7. 显示
+    # 7. 结果与仪表盘
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
-
-    # 8. 仪表盘
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred,
