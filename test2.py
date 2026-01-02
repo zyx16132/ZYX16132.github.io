@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from sklearn.base import BaseEstimator, TransformerMixin
 
 # ========================
-# 1️⃣ 定义 TargetEncoderCV（和训练时完全一致）
+# 1️⃣ TargetEncoderCV
 # ========================
 class TargetEncoderCV(BaseEstimator, TransformerMixin):
     def __init__(self, cat_cols, n_splits=5, random_state=42):
@@ -44,15 +44,16 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
         return X_encoded
 
 # ========================
-# 2️⃣ 加载模型和编码器
+# 2️⃣ 加载模型
 # ========================
 bundle = joblib.load("xgb_pipeline.joblib")
 model = bundle["model"]
 encoder = bundle["encoder"]
-feature_cols = bundle["feature_cols"]
+feature_cols = bundle["feature_cols"]  # 数值列
+cat_col = ['Antibiotic']  # 分类列
 
 # ========================
-# 3️⃣ 页面配置
+# 3️⃣ 页面布局
 # ========================
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
@@ -60,7 +61,7 @@ st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
 # ========================
-# 4️⃣ 特征范围和默认值（训练集平均）
+# 4️⃣ 特征范围和默认值
 # ========================
 feature_ranges = {
     'pH': (2.0, 12.0, 6.08),
@@ -74,7 +75,6 @@ feature_ranges = {
 }
 
 inputs = {}
-
 # 分类特征下拉
 ANTIBIOTIC_LIST = list(encoder.mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox("Type of Antibiotic", ANTIBIOTIC_LIST)
@@ -97,12 +97,12 @@ predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 if predict_btn:
     X_user = pd.DataFrame([inputs])
 
-    # 保证列顺序和训练时完全一致
-    all_input_cols = feature_cols + ['Antibiotic']
-    for col in all_input_cols:
+    # 按训练顺序，保证列完全一致
+    all_cols = feature_cols + cat_col
+    for col in all_cols:
         if col not in X_user.columns:
             X_user[col] = 0.0
-    X_user = X_user[all_input_cols]
+    X_user = X_user[all_cols]
 
     # 编码
     X_user_enc = encoder.transform(X_user)
@@ -113,7 +113,7 @@ if predict_btn:
     # 显示预测值
     st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}`%")
 
-    # 仪表盘显示
+    # 仪表盘
     fig_gauge = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred,
