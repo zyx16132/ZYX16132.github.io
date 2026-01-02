@@ -84,23 +84,24 @@ for feat, (min_val, max_val, default) in feature_ranges.items():
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # -------------------------
-# 5️⃣ 预测逻辑
-# -------------------------
+# 预测逻辑
 if predict_btn:
     X_user = pd.DataFrame([inputs])
-
-    # 确保列与训练时完全一致
-    all_cols = feature_cols + cat_col
-    for col in all_cols:
-        if col not in X_user.columns:
-            X_user[col] = 0.0  # 或训练集均值
-    X_user = X_user[all_cols]
 
     # 分类列编码
     X_user_enc = encoder.transform(X_user)
 
+    # ⚠️ 确保 XGBoost 列和训练时一致
+    # 使用训练时编码后的列名
+    trained_cols = model.get_booster().feature_names
+    for col in trained_cols:
+        if col not in X_user_enc.columns:
+            X_user_enc[col] = 0.0  # 或 encoder.global_mean_，不会改变预测结果
+    X_user_enc = X_user_enc[trained_cols]
+
     # 预测
     pred = model.predict(X_user_enc)[0]
+
 
     # 显示结果
     st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}%`")
