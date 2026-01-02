@@ -6,7 +6,7 @@ import joblib
 import plotly.graph_objects as go
 
 # =============================
-# 1️⃣ 加载模型和 encoder（字典形式）
+# 1️⃣ 加载 pipeline
 # =============================
 @st.cache_resource
 def load_pipeline():
@@ -25,9 +25,9 @@ st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
 # =============================
-# 3️⃣ 默认数值范围（可根据实际修改）
+# 3️⃣ 特征范围和默认值（与训练集一致）
 # =============================
-default_ranges = {
+feature_ranges = {
     'pH': (2.0, 12.0, 6.08),
     'Water content(%)': (5.35, 98.1, 69.9),
     'm(g)': (1.0, 500.0, 79.36),
@@ -38,22 +38,22 @@ default_ranges = {
     'NaOH Conc(mol/L)': (0.0, 0.6, 0.01)
 }
 
-# =============================
-# 4️⃣ 用户输入字典
-# =============================
 inputs = {}
 
-# 分类特征选择框（Antibiotic）
+# =============================
+# 4️⃣ 分类特征
+# =============================
 for cat in cat_cols:
-    options = list(encoder_mapping[cat].keys())
-    inputs[cat] = st.sidebar.selectbox(f"{cat}", options)
+    cat_options = list(encoder_mapping[cat].keys())
+    inputs[cat] = st.sidebar.selectbox(f"{cat}", cat_options)
 
-# 数值特征输入框
+# =============================
+# 5️⃣ 数值特征
+# =============================
 for feat in feature_cols:
-    # 如果 default_ranges 有对应 key 就用，否则设置通用默认值
-    min_val, max_val, default = default_ranges.get(feat, (0.0, 100.0, 50.0))
+    min_val, max_val, default = feature_ranges[feat]
     inputs[feat] = st.sidebar.number_input(
-        feat,
+        label=feat,
         min_value=float(min_val),
         max_value=float(max_val),
         value=float(default),
@@ -63,17 +63,18 @@ for feat in feature_cols:
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # =============================
-# 5️⃣ 预测逻辑
+# 6️⃣ 预测逻辑
 # =============================
 if predict_btn:
     # 构造 DataFrame
     X_user = pd.DataFrame([inputs])
 
-    # 分类特征 Target Encoding
+    # 分类列映射字典（安全 Target Encoding）
     for cat in cat_cols:
-        X_user[cat] = X_user[cat].map(encoder_mapping[cat]).fillna(np.mean(list(encoder_mapping[cat].values())))
+        mapping_dict = encoder_mapping[cat]  # 已经是字典
+        X_user[cat] = X_user[cat].map(mapping_dict).fillna(np.mean(list(mapping_dict.values())))
 
-    # 确保列顺序和训练一致
+    # 对齐特征顺序
     final_cols = feature_cols + cat_cols
     X_user = X_user[final_cols]
 
@@ -81,10 +82,11 @@ if predict_btn:
     pred = model.predict(X_user)[0]
 
     # =============================
-    # 6️⃣ 显示结果
+    # 7️⃣ 显示结果
     # =============================
-    st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
+    st.markdown(f"### ✅ Predicted degradation rate: **{pred:.2f}%**")
 
+    # 仪表盘显示
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred,
