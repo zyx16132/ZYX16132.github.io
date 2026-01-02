@@ -4,6 +4,43 @@ import pandas as pd
 import numpy as np
 import joblib
 import plotly.graph_objects as go
+from sklearn.base import BaseEstimator, TransformerMixin
+
+# ===== 1️⃣ 定义 TargetEncoderCV（和训练时完全一致） =====
+class TargetEncoderCV(BaseEstimator, TransformerMixin):
+    def __init__(self, cat_cols, n_splits=5, random_state=42):
+        self.cat_cols = cat_cols
+        self.n_splits = n_splits
+        self.random_state = random_state
+        self.global_mean_ = None
+        self.mapping_ = dict()
+
+    def fit(self, X, y, groups=None):
+        self.global_mean_ = y.mean()
+        self.mapping_ = dict()
+        for col in self.cat_cols:
+            if col in X.columns:
+                self.mapping_[col] = y.groupby(X[col]).mean()
+            else:
+                self.mapping_[col] = pd.Series(dtype=float)
+        return self
+
+    def transform(self, X, y=None, groups=None):
+        X_encoded = X.copy()
+        for col in self.cat_cols:
+            if col not in X_encoded.columns:
+                continue
+            if y is not None and groups is not None:
+                X_encoded[col] = pd.Series(index=X_encoded.index, dtype=float)
+                from sklearn.model_selection import GroupKFold
+                gkf = GroupKFold(n_splits=self.n_splits)
+                for train_idx, val_idx in gkf.split(X, y, groups):
+                    mapping = y.iloc[train_idx].groupby(X.iloc[train_idx][col]).mean()
+                    X_encoded.iloc[val_idx] = X.iloc[val_idx][col].map(mapping)
+                X_encoded[col] = X_encoded[col].fillna(y.mean())
+            else:
+                X_encoded[col] = X_encoded[col].map(self.mapping_[col]).fillna(self.global_mean_)
+        return X_encoded
 
 # ======================================================
 # 1️⃣ 加载模型 + 编码器 + 特征列
