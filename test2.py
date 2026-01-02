@@ -28,14 +28,19 @@ st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
 # =============================
-# 3️⃣ 左边栏显示顺序（可以自定义，不影响模型预测）
+# 3️⃣ 左侧输入：严格匹配训练列名
 # =============================
-sidebar_order = [
-    'Antibiotic', 'pH', 'Water content(%)', 'm(g)', 'T(°C)',
-    'V(L)', 't(min)', 'HCL Conc(mol/L)', 'NaOH Conc(mol/L)'
-]
 
-# 默认数值范围
+# 左侧显示顺序可以调整，但 key 必须和 feature_cols + cat_cols 一致
+inputs = {}
+
+# 1️⃣ 分类列
+for cat in cat_cols:
+    options = list(encoder_mapping[cat].keys())
+    inputs[cat] = st.sidebar.selectbox(f"{cat}", options)
+
+# 2️⃣ 数值列
+# 给用户默认值和范围，可以美观排列
 feature_ranges = {
     'pH': (2.0, 12.0, 6.08),
     'Water content(%)': (5.35, 98.1, 69.9),
@@ -47,47 +52,40 @@ feature_ranges = {
     'NaOH Conc(mol/L)': (0.0, 0.6, 0.01)
 }
 
-inputs = {}
+for feat in feature_cols:
+    min_val, max_val, default = feature_ranges.get(feat, (0.0, 100.0, 0.0))
+    inputs[feat] = st.sidebar.number_input(
+        label=feat,
+        min_value=float(min_val),
+        max_value=float(max_val),
+        value=float(default),
+        format="%.3f"
+    )
 
 # =============================
-# 4️⃣ 分类特征输入（selectbox）
-# =============================
-for feat in sidebar_order:
-    if feat in cat_cols:
-        options = list(encoder_mapping[feat].keys())
-        inputs[feat] = st.sidebar.selectbox(f"{feat}", options)
-    elif feat in feature_cols:
-        min_val, max_val, default = feature_ranges.get(feat, (0.0, 100.0, 0.0))
-        inputs[feat] = st.sidebar.number_input(
-            label=feat,
-            min_value=float(min_val),
-            max_value=float(max_val),
-            value=float(default),
-            format="%.3f"
-        )
-
-# =============================
-# 5️⃣ Predict 按钮
+# 4️⃣ Predict 按钮
 # =============================
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # =============================
-# 6️⃣ 预测逻辑
+# 5️⃣ 预测逻辑
 # =============================
 if predict_btn:
+    # 构造 DataFrame
     X_user = pd.DataFrame([inputs])
 
     # 分类列映射
     for cat in cat_cols:
         X_user[cat] = X_user[cat].map(encoder_mapping[cat])
         if X_user[cat].isna().any():
+            # 若映射为空则用平均值填充
             X_user[cat] = X_user[cat].fillna(np.mean(list(encoder_mapping[cat].values())))
 
-    # ⚠️ 严格按模型训练列顺序（pipeline保存的列顺序）
-    X_user_final = pd.concat([X_user[feature_cols], X_user[cat_cols]], axis=1)
+    # 严格按照模型训练列顺序排列
+    X_user = X_user[feature_cols + cat_cols]
 
     # 预测
-    pred = model.predict(X_user_final)[0]
+    pred = model.predict(X_user)[0]
 
     # 显示结果
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
