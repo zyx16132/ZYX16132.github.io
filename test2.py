@@ -6,7 +6,7 @@ import joblib
 import plotly.graph_objects as go
 
 # =============================
-# 1️⃣ 加载模型和映射（字典版本）
+# 1️⃣ 加载模型和 encoder（字典形式）
 # =============================
 @st.cache_resource
 def load_pipeline():
@@ -25,9 +25,9 @@ st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
 # =============================
-# 3️⃣ 特征范围和默认值
+# 3️⃣ 默认数值范围（可根据实际修改）
 # =============================
-feature_ranges = {
+default_ranges = {
     'pH': (2.0, 12.0, 6.08),
     'Water content(%)': (5.35, 98.1, 69.9),
     'm(g)': (1.0, 500.0, 79.36),
@@ -38,21 +38,20 @@ feature_ranges = {
     'NaOH Conc(mol/L)': (0.0, 0.6, 0.01)
 }
 
+# =============================
+# 4️⃣ 用户输入字典
+# =============================
 inputs = {}
 
-# =============================
-# 4️⃣ 分类特征下拉框
-# =============================
+# 分类特征选择框（Antibiotic）
 for cat in cat_cols:
-    if cat in encoder_mapping:
-        options = list(encoder_mapping[cat].keys())
-        inputs[cat] = st.sidebar.selectbox(f"Type of {cat}", options)
+    options = list(encoder_mapping[cat].keys())
+    inputs[cat] = st.sidebar.selectbox(f"{cat}", options)
 
-# =============================
-# 5️⃣ 数值特征输入
-# =============================
+# 数值特征输入框
 for feat in feature_cols:
-    min_val, max_val, default = feature_ranges[feat]
+    # 如果 default_ranges 有对应 key 就用，否则设置通用默认值
+    min_val, max_val, default = default_ranges.get(feat, (0.0, 100.0, 50.0))
     inputs[feat] = st.sidebar.number_input(
         feat,
         min_value=float(min_val),
@@ -64,27 +63,25 @@ for feat in feature_cols:
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # =============================
-# 6️⃣ 预测逻辑
+# 5️⃣ 预测逻辑
 # =============================
 if predict_btn:
+    # 构造 DataFrame
     X_user = pd.DataFrame([inputs])
 
-    # ---------- 字典 Target Encoding ----------
-    for col in cat_cols:
-        if col in encoder_mapping:
-            X_user[col] = X_user[col].map(
-                encoder_mapping[col]
-            ).fillna(np.mean(list(encoder_mapping[col].values())))
+    # 分类特征 Target Encoding
+    for cat in cat_cols:
+        X_user[cat] = X_user[cat].map(encoder_mapping[cat]).fillna(np.mean(list(encoder_mapping[cat].values())))
 
-    # ---------- 严格列顺序 ----------
+    # 确保列顺序和训练一致
     final_cols = feature_cols + cat_cols
-    X_user_enc = X_user[final_cols]
+    X_user = X_user[final_cols]
 
-    # ---------- 预测 ----------
-    pred = model.predict(X_user_enc)[0]
+    # 预测
+    pred = model.predict(X_user)[0]
 
     # =============================
-    # 7️⃣ 显示结果
+    # 6️⃣ 显示结果
     # =============================
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
 
@@ -105,10 +102,10 @@ if predict_btn:
     st.plotly_chart(fig, use_container_width=True)
 
 else:
-    st.info("Please enter the parameters on the left and click Predict.")
+    st.info("Please enter all parameters on the left and click Predict.")
 
 st.markdown("---")
 st.markdown(
-    "*This application uses the final trained XGBoost model and the saved target encoding mapping "
-    "to ensure full reproducibility.*"
+    "*This application uses the final trained XGBoost model and the same "
+    "target encoding strategy as the training pipeline to ensure full reproducibility.*"
 )
