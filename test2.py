@@ -58,7 +58,7 @@ def train_and_embed():
     all_groups = set(df['Group'].unique())
     train_groups = all_groups - test_groups
     train_mask = df['Group'].isin(train_groups)
-    test_mask  = df['Group'].isin(test_mask)
+    test_mask  = df['Group'].isin(test_groups)
     X_train, X_test = X.loc[train_mask], X.loc[test_mask]
     y_train, y_test = y.loc[train_mask], y.loc[test_mask]
 
