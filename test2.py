@@ -1,46 +1,36 @@
-# app.py
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
 import joblib
 
-# ---------- 页面配置 ----------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
-# ---------- 加载模型和编码器 ----------
+# ---------- 加载 pipeline ----------
 @st.cache_resource
-def load_model_and_encoder():
-    model = joblib.load("xgb_best.pkl")
-    encoder = joblib.load("encoder.pkl")
-    return model, encoder
+def load_pipeline():
+    pipe = joblib.load("xgb_pipeline_groupCV.pkl")
+    return pipe
 
-model, encoder = load_model_and_encoder()
+pipe = load_pipeline()
 
 # ---------- 特征名 ----------
 feat_cols = ['Antibiotic', 'pH', 'Water content(%)', 'm(g)', 'T(°C)',
              'V(L)', 't(min)', 'HCL Conc(mol/L)', 'NaOH Conc(mol/L)']
-feat_cols_cn = ['Type of Antibiotic', 
-                'Initial environmental pH', 
-                'Water content(%)', 
-                'Quality(g)', 
-                'Reaction temperature(°C)', 
-                'Reactor volume(L)', 
-                'Reaction time(min)', 
-                'HCL concentration(mol/L)', 
-                'NaOH concentration(mol/L)']
+feat_cols_cn = ['Type of Antibiotic', 'Initial environmental pH', 'Water content(%)',
+                'Quality(g)', 'Reaction temperature(°C)', 'Reactor volume(L)',
+                'Reaction time(min)', 'HCL concentration(mol/L)', 'NaOH concentration(mol/L)']
 
 # ---------- 侧边栏输入 ----------
 st.sidebar.header("Please enter parameters")
 inputs = {}
 
 # 自动获取 Antibiotic 类别
-antibiotics_list = list(encoder.mapping_['Antibiotic'].index)
+antibiotics_list = list(pipe.named_steps['encoder'].mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox(feat_cols_cn[0], antibiotics_list)
 
-# 数值列默认值用 encoder.global_mean_（或者自己设定训练均值）
+# 数值默认值
 default_values = {
     'pH': 6.08,
     'Water content(%)': 69.9,
@@ -60,10 +50,7 @@ btn = st.sidebar.button("🔍 Predict degradation rate")
 # ---------- 主界面 ----------
 if btn:
     X_user = pd.DataFrame([inputs])
-    # 编码 Antibiotic
-    X_user_encoded = encoder.transform(X_user)
-    
-    pred = model.predict(X_user_encoded)[0]
+    pred = pipe.predict(X_user)[0]
     st.markdown(f"### Predicted Degradation rate: `{pred:.3f}`")
 
     # 仪表盘显示
