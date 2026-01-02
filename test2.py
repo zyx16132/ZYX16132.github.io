@@ -11,7 +11,6 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
     作用：仅用于 joblib.load 时让 pickle 找到类定义
     ⚠️ 不会重新 fit，不会改变任何预测结果
     """
-
     def __init__(self, cat_cols=None, n_splits=5, random_state=42):
         self.cat_cols = cat_cols
         self.n_splits = n_splits
@@ -98,12 +97,14 @@ st.sidebar.header("Please enter parameters")
 
 inputs = {}
 
-# Antibiotic 直接文本输入
-inputs['Antibiotic'] = st.sidebar.text_input(
+# 🔹 抗生素下拉框（从训练 Pipeline 获取）
+ANTIBIOTIC_LIST = list(pipe.named_steps['encoder'].mapping_['Antibiotic'].index)
+inputs['Antibiotic'] = st.sidebar.selectbox(
     LABELS['Antibiotic'],
-    value="TC"
+    ANTIBIOTIC_LIST
 )
 
+# 数值输入
 defaults = {
     'pH': 6.08,
     'Water content(%)': 69.9,
