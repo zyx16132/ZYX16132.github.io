@@ -12,24 +12,25 @@ st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
 # ======================================================
-# 加载模型 + encoder（已训练好）
+# 加载 Pipeline（唯一需要的模型文件）
 # ======================================================
 @st.cache_resource
-def load_model_and_encoder():
-    model = joblib.load("xgb_best.pkl")      # 你的 XGB 模型
-    encoder = joblib.load("encoder.pkl")     # TargetEncoderCV
-    return model, encoder
+def load_pipeline():
+    return joblib.load("xgb_pipeline_groupCV.pkl")
 
 try:
-    model, encoder = load_model_and_encoder()
+    pipe = load_pipeline()
 except Exception as e:
-    st.error(f"❌ Model or encoder loading failed:\n\n{e}")
+    st.error("❌ Model pipeline loading failed")
+    st.exception(e)
     st.stop()
 
+st.success("✅ Model pipeline loaded successfully")
+
 # ======================================================
-# ⚠️ 必须与模型训练时完全一致的特征顺序
+# ⚠️ 必须与训练时特征名一致（但不需要顺序）
 # ======================================================
-MODEL_FEATURES = [
+FEATURES = [
     'pH',
     'Water content(%)',
     'm(g)',
@@ -38,11 +39,9 @@ MODEL_FEATURES = [
     't(min)',
     'HCL Conc(mol/L)',
     'NaOH Conc(mol/L)',
-    'Degradation',   # ⚠️ 占位列（必须）
     'Antibiotic'
 ]
 
-# 页面显示名称
 LABELS = {
     'Antibiotic': 'Type of Antibiotic',
     'pH': 'Initial environmental pH [2,12]',
@@ -61,13 +60,12 @@ LABELS = {
 st.sidebar.header("Please enter parameters")
 inputs = {}
 
-# Antibiotic 下拉框
-inputs['Antibiotic'] = st.sidebar.selectbox(
+# ⚠️ Antibiotic 直接文本输入（最稳）
+inputs['Antibiotic'] = st.sidebar.text_input(
     LABELS['Antibiotic'],
-    list(encoder.mapping_['Antibiotic'].index)
+    value="TC"
 )
 
-# 数值输入
 defaults = {
     'pH': 6.08,
     'Water content(%)': 69.9,
@@ -81,7 +79,9 @@ defaults = {
 
 for k, v in defaults.items():
     inputs[k] = st.sidebar.number_input(
-        LABELS[k], value=float(v), format="%.3f"
+        LABELS[k],
+        value=float(v),
+        format="%.3f"
     )
 
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
@@ -91,18 +91,10 @@ predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 # ======================================================
 if predict_btn:
     try:
-        # 构建 DataFrame
         X_user = pd.DataFrame([inputs])
 
-        # 🔑 补占位 Degradation
-        X_user['Degradation'] = 0.0
-
-        # 🔑 按训练顺序重排
-        X_user = X_user[MODEL_FEATURES]
-
-        # 编码 + 预测
-        X_user_enc = encoder.transform(X_user)
-        pred = model.predict(X_user_enc)[0]
+        # 🔑 Pipeline 会自动完成编码 + 预测
+        pred = pipe.predict(X_user)[0]
 
         st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}`")
 
@@ -110,11 +102,12 @@ if predict_btn:
             mode="gauge+number",
             value=pred,
             title={'text': "Degradation rate"},
-            gauge={'axis': {'range': [0, 1]}}
+            gauge={'axis': {'range': [0, 100]}}
         ))
         st.plotly_chart(fig, use_container_width=True)
 
     except Exception as e:
-        st.error(f"❌ Prediction failed:\n\n{e}")
+        st.error("❌ Prediction failed")
+        st.exception(e)
 else:
     st.info("Please enter parameters on the left and click Predict.")
