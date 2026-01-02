@@ -6,12 +6,9 @@ import joblib
 import plotly.graph_objects as go
 
 # -------------------- 0. 保险栓：统一大小写/空格（可选） --------------------
+# 直接映射，无保险
 def safe_encode(val, mapping):
     val = str(val).upper().strip()
-    # 1. 空字典 / 空值 → 直接返回 0，不再用 np.mean
-    if not mapping or not list(mapping.values()):
-        return 0.0
-    # 2. 有值时正常映射
     return mapping.get(val, np.mean(list(mapping.values())))
 
 # -------------------- 1. 加载 3 个独立文件（无 bundle） --------------------
