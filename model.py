@@ -42,7 +42,7 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
 # ======================================================
 # 2. 训练函数（只负责训练）
 # ======================================================
-def train_xgb_model(data_path="文献数据.xlsx"):
+def train_xgb_model(data_path="data.xlsx"):
     df = pd.read_excel(data_path)
 
     feature_cols = df.columns[1:10]
@@ -102,3 +102,4 @@ encoder = _encoder
 feature_cols = _feature_cols
 
 __all__ = ["best_xgb", "encoder", "feature_cols"]
+
