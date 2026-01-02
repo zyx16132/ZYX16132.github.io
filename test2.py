@@ -1,18 +1,55 @@
-# app.py
-import streamlit as st
+# ======================================================
+# 0️⃣ 反序列化占位：TargetEncoderCV（必须最先定义）
+# ======================================================
+from sklearn.base import BaseEstimator, TransformerMixin
 import pandas as pd
+import numpy as np
+
+class TargetEncoderCV(BaseEstimator, TransformerMixin):
+    """
+    ⚠️ 这是一个“反序列化占位类”
+    作用：仅用于 joblib.load 时让 pickle 找到类定义
+    ⚠️ 不会重新 fit，不会改变任何预测结果
+    """
+
+    def __init__(self, cat_cols=None, n_splits=5, random_state=42):
+        self.cat_cols = cat_cols
+        self.n_splits = n_splits
+        self.random_state = random_state
+        self.global_mean_ = None
+        self.mapping_ = {}
+
+    def fit(self, X, y=None, groups=None):
+        return self
+
+    def transform(self, X, y=None, groups=None):
+        X_out = X.copy()
+        for col, mapping in self.mapping_.items():
+            if col in X_out.columns:
+                X_out[col] = X_out[col].map(mapping).fillna(self.global_mean_)
+        return X_out
+
+
+# ======================================================
+# 1️⃣ 正常 imports
+# ======================================================
+import streamlit as st
 import plotly.graph_objects as go
 import joblib
 
 # ======================================================
-# 页面配置
+# 2️⃣ 页面配置
 # ======================================================
-st.set_page_config(page_title="Degradation rate prediction", layout="centered")
+st.set_page_config(
+    page_title="Degradation rate prediction",
+    layout="centered"
+)
+
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
 # ======================================================
-# 加载 Pipeline（唯一需要的模型文件）
+# 3️⃣ 加载模型 Pipeline
 # ======================================================
 @st.cache_resource
 def load_pipeline():
@@ -28,7 +65,7 @@ except Exception as e:
 st.success("✅ Model pipeline loaded successfully")
 
 # ======================================================
-# ⚠️ 必须与训练时特征名一致（但不需要顺序）
+# 4️⃣ 特征定义（名称必须与训练一致）
 # ======================================================
 FEATURES = [
     'pH',
@@ -44,23 +81,23 @@ FEATURES = [
 
 LABELS = {
     'Antibiotic': 'Type of Antibiotic',
-    'pH': 'Initial environmental pH [2,12]',
-    'Water content(%)': 'Water content (%) [5.35,98.1]',
-    'm(g)': 'Quality (g) [1,500]',
-    'T(°C)': 'Reaction temperature (°C) [0,340]',
-    'V(L)': 'Reactor volume (L) [0.05,1]',
-    't(min)': 'Reaction time (min) [0,480]',
-    'HCL Conc(mol/L)': 'HCL concentration (mol/L) [0,0.6]',
-    'NaOH Conc(mol/L)': 'NaOH concentration (mol/L) [0,0.6]'
+    'pH': 'Initial environmental pH [2–12]',
+    'Water content(%)': 'Water content (%) [5.35–98.1]',
+    'm(g)': 'Quality (g) [1–500]',
+    'T(°C)': 'Reaction temperature (°C) [0–340]',
+    'V(L)': 'Reactor volume (L) [0.05–1]',
+    't(min)': 'Reaction time (min) [0–480]',
+    'HCL Conc(mol/L)': 'HCL concentration (mol/L) [0–0.6]',
+    'NaOH Conc(mol/L)': 'NaOH concentration (mol/L) [0–0.6]'
 }
 
 # ======================================================
-# 侧边栏输入
+# 5️⃣ 侧边栏输入
 # ======================================================
 st.sidebar.header("Please enter parameters")
+
 inputs = {}
 
-# ⚠️ Antibiotic 直接文本输入（最稳）
 inputs['Antibiotic'] = st.sidebar.text_input(
     LABELS['Antibiotic'],
     value="TC"
@@ -87,13 +124,13 @@ for k, v in defaults.items():
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # ======================================================
-# 预测
+# 6️⃣ 预测
 # ======================================================
 if predict_btn:
     try:
         X_user = pd.DataFrame([inputs])
 
-        # 🔑 Pipeline 会自动完成编码 + 预测
+        # Pipeline 自动完成：TargetEncoding → XGB → 预测
         pred = pipe.predict(X_user)[0]
 
         st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}`")
@@ -104,10 +141,20 @@ if predict_btn:
             title={'text': "Degradation rate"},
             gauge={'axis': {'range': [0, 100]}}
         ))
+
         st.plotly_chart(fig, use_container_width=True)
 
     except Exception as e:
         st.error("❌ Prediction failed")
         st.exception(e)
+
 else:
     st.info("Please enter parameters on the left and click Predict.")
+
+# ======================================================
+# 7️⃣ 页脚
+# ======================================================
+st.markdown("---")
+st.markdown(
+    "*This system uses a unified machine learning pipeline to ensure consistent preprocessing and prediction.*"
+)
