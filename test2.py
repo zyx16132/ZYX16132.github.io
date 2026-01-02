@@ -10,14 +10,16 @@ import plotly.graph_objects as go
 # =============================
 @st.cache_resource
 def load_pipeline():
-    bundle = joblib.load("xgb_pipeline_no_class.joblib")
-    return bundle
+    return joblib.load("xgb_pipeline_no_class.joblib")
 
 bundle = load_pipeline()
-model = bundle["model"]
+
+# 取出各个组件
+model   = bundle["model"]
 encoder_mapping = bundle["encoder_mapping"]
-feature_cols = bundle["feature_cols"]  # 数值列
-cat_cols = bundle["cat_cols"]          # 分类列，如 ['Antibiotic']
+feature_cols    = bundle["feature_cols"]   # 数值列
+cat_cols        = bundle["cat_cols"]       # 分类列
+train_columns   = bundle["train_columns"]  # ✅ 关键：训练时的完整列顺序
 
 # =============================
 # 2️⃣ 页面布局
@@ -28,7 +30,7 @@ st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
 # =============================
-# 3️⃣ 左侧显示顺序（随意）和数值范围
+# 3️⃣ 侧边栏输入顺序与范围
 # =============================
 sidebar_order = [
     "Antibiotic", "pH", "Water content(%)", "m(g)", "T(°C)",
@@ -76,38 +78,35 @@ for col in sidebar_order:
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # =============================
-# 7️⃣ 预测逻辑（已修复 KeyError）
+# 7️⃣ 预测逻辑（完全对齐 train_columns）
 # =============================
 if predict_btn:
-    # 1. 先建空表，列名=模型训练时的完整顺序
-    all_cols = feature_cols + cat_cols
-    X_user = pd.DataFrame(columns=all_cols)
+    # 1. 按训练列顺序建空表
+    X_user = pd.DataFrame(columns=train_columns)
 
-    # 2. 把 sidebar 收集到的值填进去
+    # 2. 填值
     for col, val in inputs.items():
         X_user.loc[0, col] = val
 
-    # 3. 分类变量映射成数字
+    # 3. 分类映射
     for cat in cat_cols:
-        X_user[cat] = X_user[cat].map(encoder_mapping[cat])
-        if X_user[cat].isna().any():               # 未知类别用均值填
-            X_user[cat] = X_user[cat].fillna(
-                np.mean(list(encoder_mapping[cat].values()))
-            )
+        mapping = encoder_mapping[cat]
+        X_user[cat] = X_user[cat].map(mapping)
+        X_user[cat] = X_user[cat].fillna(np.mean(list(mapping.values())))
 
-    # 4. 统一转数值型
+    # 4. 转数值
     X_user = X_user.astype(float)
 
-    # 5. 现在再切片就不会缺列了
-    X_user_final = X_user[all_cols]
+    # 5. 按训练顺序切片 → 列数/顺序 100% 一致
+    X_user_final = X_user[train_columns]
 
-    # 6. 预测
-    pred = model.predict(X_user_final.values)[0]   # 加 .values 即可
+    # 6. 预测（不会再报 feature mismatch）
+    pred = model.predict(X_user_final.values)[0]
 
-    # 7. 显示结果
+    # 7. 显示
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
 
-    # 仪表盘
+    # 8. 仪表盘
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred,
