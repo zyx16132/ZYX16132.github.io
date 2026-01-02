@@ -4,7 +4,6 @@ import pandas as pd
 import plotly.graph_objects as go
 import joblib
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.model_selection import GroupKFold
 import numpy as np
 
 # ---------------- 自定义编码器 ----------------
@@ -33,6 +32,7 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
                 continue
             if y is not None and groups is not None:
                 X_encoded[col] = np.nan
+                from sklearn.model_selection import GroupKFold
                 gkf = GroupKFold(n_splits=self.n_splits)
                 X_temp, y_temp, groups_temp = X.copy(), y.copy(), groups.copy()
                 for train_idx, val_idx in gkf.split(X_temp, y_temp, groups_temp):
@@ -51,6 +51,7 @@ st.markdown("---")
 # ---------------- 加载 pipeline ----------------
 @st.cache_resource
 def load_pipeline():
+    # ⚠️ 自定义类需要在加载前先定义，否则 pickle 无法找到 TargetEncoderCV
     pipe = joblib.load("xgb_pipeline_groupCV.pkl")
     return pipe
 
@@ -91,26 +92,28 @@ btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # ---------------- 主界面 ----------------
 if btn:
-    # 构建 DataFrame，列顺序必须和训练一致
+    # ⚠️ 核心修改：列顺序严格和训练时一致
     X_user = pd.DataFrame([inputs], columns=feat_cols)
 
-    # ✅ 使用 pipeline 直接预测
-    pred = pipe.predict(X_user)[0]
+    try:
+        # pipeline 自动处理编码
+        pred = pipe.predict(X_user)[0]
+        st.markdown(f"### Predicted Degradation rate: `{pred:.3f}`")
 
-    st.markdown(f"### Predicted Degradation rate: `{pred:.3f}`")
-
-    # 仪表盘显示
-    fig_gauge = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=pred,
-        title={'text': "Degradation rate", 'font': {'size': 24}},
-        gauge={'axis': {'range': [0, 1]},
-               'bar': {'color': "darkgreen"},
-               'steps': [{'range': [0, 0.5], 'color': "lightgray"},
-                         {'range': [0.5, 1], 'color': "lightgreen"}],
-               'threshold': {'line': {'color': "red", 'width': 4},
-                             'thickness': 0.75, 'value': pred}}))
-    st.plotly_chart(fig_gauge, use_container_width=True)
+        # 仪表盘显示
+        fig_gauge = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=pred,
+            title={'text': "Degradation rate", 'font': {'size': 24}},
+            gauge={'axis': {'range': [0, 1]},
+                   'bar': {'color': "darkgreen"},
+                   'steps': [{'range': [0, 0.5], 'color': "lightgray"},
+                             {'range': [0.5, 1], 'color': "lightgreen"}],
+                   'threshold': {'line': {'color': "red", 'width': 4},
+                                 'thickness': 0.75, 'value': pred}}))
+        st.plotly_chart(fig_gauge, use_container_width=True)
+    except ValueError as e:
+        st.error(f"Prediction failed: {e}\n\n⚠️ Please make sure all inputs are valid and feature names match the training data.")
 
 else:
     st.info("Please enter the parameters in the left column and click the prediction button")
