@@ -43,9 +43,9 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
         return X_encoded
 
 # -------------------- 3. 训练函数（只跑一次，缓存） --------------------
-@st.cache_resource   # 训练结果缓存，重启才重跑
+@st.cache_resource
 def train_and_embed():
-    st.info("🚀 正在训练最终模型，首次打开需 30-60 秒，请稍候...")
+    st.info("🚀 正在训练最终模型，首次打开需 5-10 秒，请稍候...")
     df = pd.read_excel(r'data.xlsx')
     feature_cols = df.columns[1:10]
     categorical_cols = ['Antibiotic']
@@ -68,33 +68,19 @@ def train_and_embed():
     X_train_enc = encoder.transform(X_train)
     X_test_enc  = encoder.transform(X_test)
 
-    # 随机搜索（纯数值）
-    param_dist = {
-        'n_estimators': [100, 150, 200, 300, 400, 500],
-        'max_depth': [6, 7, 8, 9],
-        'learning_rate': [0.15, 0.2],
-        'subsample': [0.5, 0.6],
-        'colsample_bytree': [0.4, 0.5],
-        'reg_alpha': [1.0, 5.0],
-        'reg_lambda': [10, 30, 50]
+    # 跳过搜索，直接用最优超参数
+    best_params = {
+        'subsample': 0.5,
+        'reg_lambda': 30,
+        'reg_alpha': 1.0,
+        'n_estimators': 400,
+        'max_depth': 9,
+        'learning_rate': 0.15,
+        'colsample_bytree': 0.5
     }
-    xgb_base = xgb.XGBRegressor(random_state=42, objective='reg:squarederror')
+    print("使用之前最优超参数:", best_params)
 
-    search = RandomizedSearchCV(
-        estimator=xgb_base,
-        param_distributions=param_dist,
-        n_iter=10,
-        scoring='r2',
-        cv=3,
-        random_state=42,
-        n_jobs=-1,
-        verbose=1
-    )
-    search.fit(X_train_enc, y_train)
-    best_params = search.best_params_
-    print("最佳参数:", best_params)
-
-    # 总模型（最佳参数 + 全训练集）
+    # 总模型（最优参数 + 全训练集）
     final_model = xgb.XGBRegressor(**best_params, random_state=42, objective='reg:squarederror')
     final_model.fit(X_train_enc, y_train)
 
