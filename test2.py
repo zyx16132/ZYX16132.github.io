@@ -42,44 +42,83 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
                 X_encoded[col] = X_encoded[col].map(self.mapping_[col]).fillna(self.global_mean_)
         return X_encoded
 
-# 加载模型
+import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
+import plotly.graph_objects as go
+
+# -------------------------
+# 1️⃣ 加载模型
+# -------------------------
 bundle = joblib.load("xgb_pipeline.joblib")
 model = bundle["model"]
 encoder = bundle["encoder"]
 feature_cols = bundle["feature_cols"]
 
+# -------------------------
+# 2️⃣ 页面布局
+# -------------------------
+st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
+st.markdown("---")
 
-# 用户输入
-antibiotic = st.selectbox("Type of Antibiotic", ["CEP", "AMP", "其他"])
-ph = st.number_input("pH", value=5.0)
-water_content = st.number_input("Water content(%)", value=70.0)
-m = st.number_input("m(g)", value=80.0)
-T = st.number_input("T(°C)", value=120.0)
-V = st.number_input("V(L)", value=0.23)
-t = st.number_input("t(min)", value=64.0)
-HCL = st.number_input("HCL Conc(mol/L)", value=0.05)
-NaOH = st.number_input("NaOH Conc(mol/L)", value=0.01)
+st.sidebar.header("Please enter parameters")
 
-# 构建 DataFrame（只包含模型特征，不要 Degradation）
-X_user = pd.DataFrame({
-    "pH": [ph],
-    "Water content(%)": [water_content],
-    "m(g)": [m],
-    "T(°C)": [T],
-    "V(L)": [V],
-    "t(min)": [t],
-    "HCL Conc(mol/L)": [HCL],
-    "NaOH Conc(mol/L)": [NaOH],
-    "Antibiotic": [antibiotic]
-})
+# -------------------------
+# 3️⃣ 特征范围 & 默认值
+# -------------------------
+feature_ranges = {
+    'pH': (2, 12, 6.08),
+    'Water content(%)': (5.35, 98.1, 69.9),
+    'm(g)': (1, 500, 79.36),
+    'T(°C)': (0, 340, 117.8),
+    'V(L)': (0.05, 1, 0.23),
+    't(min)': (0, 480, 64.59),
+    'HCL Conc(mol/L)': (0, 0.6, 0.06),
+    'NaOH Conc(mol/L)': (0, 0.6, 0.01)
+}
 
-# 使用训练时的 encoder 转换
-X_user_enc = encoder.transform(X_user)
+inputs = {}
 
-# 预测
-pred = model.predict(X_user_enc)[0]
+# 分类特征
+ANTIBIOTIC_LIST = list(encoder.mapping_['Antibiotic'].index)
+inputs['Antibiotic'] = st.sidebar.selectbox("Type of Antibiotic", ANTIBIOTIC_LIST)
 
-st.write(f"Predicted Degradation: {pred:.2f}")
+# 数值特征
+for feat, (min_val, max_val, default) in feature_ranges.items():
+    inputs[feat] = st.sidebar.number_input(f"{feat} ({min_val}, {max_val})", 
+                                           value=float(default), 
+                                           min_value=min_val, 
+                                           max_value=max_val, 
+                                           format="%.3f")
 
+predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
+# -------------------------
+# 4️⃣ 预测逻辑
+# -------------------------
+if predict_btn:
+    X_user = pd.DataFrame([inputs])
+    # 按训练特征顺序
+    X_user = X_user[feature_cols + ['Antibiotic']]
+    # 编码
+    X_user_enc = encoder.transform(X_user)
+    # 预测
+    pred = model.predict(X_user_enc)[0]
+
+    st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}`")
+
+    # 仪表盘
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=pred,
+        title={'text': "Degradation rate"},
+        gauge={'axis': {'range': [0, 100]}}
+    ))
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("Please enter parameters on the left and click Predict.")
+
+st.markdown("---")
+st.markdown("*This system uses a unified machine learning pipeline to ensure consistent preprocessing and prediction.*")
