@@ -29,9 +29,8 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
                 X_out[col] = X_out[col].map(mapping).fillna(self.global_mean_)
         return X_out
 
-
 # ======================================================
-# 1️⃣ 正常 imports
+# 1️⃣ imports
 # ======================================================
 import streamlit as st
 import plotly.graph_objects as go
@@ -49,7 +48,7 @@ st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
 # ======================================================
-# 3️⃣ 加载模型 Pipeline
+# 3️⃣ 加载 Pipeline
 # ======================================================
 @st.cache_resource
 def load_pipeline():
@@ -65,9 +64,9 @@ except Exception as e:
 st.success("✅ Model pipeline loaded successfully")
 
 # ======================================================
-# 4️⃣ 特征定义（名称必须与训练一致）
+# 4️⃣ 特征定义（列顺序必须和训练一致）
 # ======================================================
-FEATURES = [
+MODEL_FEATURES = [
     'pH',
     'Water content(%)',
     'm(g)',
@@ -76,6 +75,7 @@ FEATURES = [
     't(min)',
     'HCL Conc(mol/L)',
     'NaOH Conc(mol/L)',
+    'Degradation',   # ⚠️ 占位列
     'Antibiotic'
 ]
 
@@ -98,6 +98,7 @@ st.sidebar.header("Please enter parameters")
 
 inputs = {}
 
+# Antibiotic 直接文本输入
 inputs['Antibiotic'] = st.sidebar.text_input(
     LABELS['Antibiotic'],
     value="TC"
@@ -128,9 +129,16 @@ predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 # ======================================================
 if predict_btn:
     try:
+        # 构建 DataFrame
         X_user = pd.DataFrame([inputs])
 
-        # Pipeline 自动完成：TargetEncoding → XGB → 预测
+        # 🔑 补占位 Degradation
+        X_user['Degradation'] = 0.0
+
+        # 🔑 按训练列顺序排序
+        X_user = X_user[MODEL_FEATURES]
+
+        # Pipeline 自动完成编码 + 预测
         pred = pipe.predict(X_user)[0]
 
         st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}`")
