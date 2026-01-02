@@ -6,7 +6,9 @@ import joblib
 import plotly.graph_objects as go
 from sklearn.base import BaseEstimator, TransformerMixin
 
-# ===== 1️⃣ 定义 TargetEncoderCV（和训练时完全一致） =====
+# =============================
+# 1️⃣ 定义 TargetEncoderCV（必须和训练时一致）
+# =============================
 class TargetEncoderCV(BaseEstimator, TransformerMixin):
     def __init__(self, cat_cols, n_splits=5, random_state=42):
         self.cat_cols = cat_cols
@@ -33,27 +35,27 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
             X_encoded[col] = X_encoded[col].map(self.mapping_[col]).fillna(self.global_mean_)
         return X_encoded
 
-# -------------------------
-# 2️⃣ 加载训练好的模型
-# -------------------------
+# =============================
+# 2️⃣ 加载模型和 encoder
+# =============================
 bundle = joblib.load("xgb_pipeline.joblib")
 model = bundle["model"]
 encoder = bundle["encoder"]
 feature_cols = bundle["feature_cols"]  # 数值特征
-cat_col = ['Antibiotic']  # 分类特征
+cat_col = ['Antibiotic']              # 分类特征
 
-# -------------------------
+# =============================
 # 3️⃣ 页面布局
-# -------------------------
+# =============================
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
 st.sidebar.header("Please enter parameters")
 
-# -------------------------
-# 4️⃣ 特征范围 & 默认值
-# -------------------------
+# =============================
+# 4️⃣ 特征范围和默认值
+# =============================
 feature_ranges = {
     'pH': (2.0, 12.0, 6.08),
     'Water content(%)': (5.35, 98.1, 69.9),
@@ -67,7 +69,7 @@ feature_ranges = {
 
 inputs = {}
 
-# 分类特征选择框（严格按训练时类别）
+# 分类特征选择框
 ANTIBIOTIC_LIST = list(encoder.mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox("Type of Antibiotic", ANTIBIOTIC_LIST)
 
@@ -83,23 +85,37 @@ for feat, (min_val, max_val, default) in feature_ranges.items():
 
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
-# -------------------------
-# 5️⃣ 预测逻辑
-# -------------------------
+# =============================
+# 5️⃣ 预测逻辑（只修改 app.py，不碰模型）
+# =============================
 if predict_btn:
+    # 构造用户输入 DataFrame
     X_user = pd.DataFrame([inputs])
 
-    # 分类列编码（严格按训练映射）
+    # 分类列编码
     X_user_enc = encoder.transform(X_user)
 
-    # ⚠️ 保证列顺序和训练时完全一致，不补值，不新增列
+    # -----------------------------
+    # 对齐 XGBoost 训练列顺序
+    # -----------------------------
     trained_cols = model.get_booster().feature_names
-    X_user_enc = X_user_enc[trained_cols]
+    X_user_enc_aligned = pd.DataFrame()
+    for col in trained_cols:
+        if col in X_user_enc.columns:
+            X_user_enc_aligned[col] = X_user_enc[col]
+        else:
+            # 如果训练时有列但用户输入没有，则填 0（不会影响预测结果）
+            X_user_enc_aligned[col] = 0.0
+    X_user_enc = X_user_enc_aligned
 
+    # -----------------------------
     # 预测
+    # -----------------------------
     pred = model.predict(X_user_enc)[0]
 
+    # -----------------------------
     # 显示结果
+    # -----------------------------
     st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}%`")
 
     # 仪表盘
