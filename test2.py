@@ -1,3 +1,4 @@
+# test2.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -5,7 +6,7 @@ import joblib
 import plotly.graph_objects as go
 
 # =============================
-# 1️⃣ Load model pipeline
+# 1️⃣ 加载模型 bundle（无需自定义类）
 # =============================
 @st.cache_resource
 def load_pipeline():
@@ -15,11 +16,11 @@ def load_pipeline():
 bundle = load_pipeline()
 model = bundle["model"]
 encoder_mapping = bundle["encoder_mapping"]
-feature_cols = bundle["feature_cols"]  # numeric features
-cat_cols = bundle["cat_cols"]          # categorical features, e.g., ['Antibiotic']
+feature_cols = bundle["feature_cols"]  # 数值列
+cat_cols = bundle["cat_cols"]          # 分类列，如 ['Antibiotic']
 
 # =============================
-# 2️⃣ Page setup
+# 2️⃣ 页面布局
 # =============================
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
@@ -27,7 +28,7 @@ st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
 # =============================
-# 3️⃣ Sidebar input order (can be arbitrary)
+# 3️⃣ 左侧显示顺序（随意）和数值范围
 # =============================
 sidebar_order = [
     "Antibiotic", "pH", "Water content(%)", "m(g)", "T(°C)",
@@ -48,7 +49,7 @@ feature_ranges = {
 inputs = {}
 
 # =============================
-# 4️⃣ Categorical feature inputs
+# 4️⃣ 分类特征输入（selectbox）
 # =============================
 for col in sidebar_order:
     if col in cat_cols:
@@ -56,7 +57,7 @@ for col in sidebar_order:
         inputs[col] = st.sidebar.selectbox(col, options)
 
 # =============================
-# 5️⃣ Numeric feature inputs
+# 5️⃣ 数值特征输入（number_input）
 # =============================
 for col in sidebar_order:
     if col in feature_cols:
@@ -70,33 +71,43 @@ for col in sidebar_order:
         )
 
 # =============================
-# 6️⃣ Predict button
+# 6️⃣ Predict 按钮
 # =============================
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # =============================
-# 7️⃣ Prediction logic
+# 7️⃣ 预测逻辑（已修复 KeyError）
 # =============================
 if predict_btn:
-    # Convert inputs to DataFrame
-    X_user = pd.DataFrame([inputs])
+    # 1. 先建空表，列名=模型训练时的完整顺序
+    all_cols = feature_cols + cat_cols
+    X_user = pd.DataFrame(columns=all_cols)
 
-    # Map categorical features
+    # 2. 把 sidebar 收集到的值填进去
+    for col, val in inputs.items():
+        X_user.loc[0, col] = val
+
+    # 3. 分类变量映射成数字
     for cat in cat_cols:
         X_user[cat] = X_user[cat].map(encoder_mapping[cat])
-        if X_user[cat].isna().any():
-            X_user[cat] = X_user[cat].fillna(np.mean(list(encoder_mapping[cat].values())))
+        if X_user[cat].isna().any():               # 未知类别用均值填
+            X_user[cat] = X_user[cat].fillna(
+                np.mean(list(encoder_mapping[cat].values()))
+            )
 
-    # Ensure strict column order for the model
-    X_user_final = X_user[feature_cols + cat_cols]
+    # 4. 统一转数值型
+    X_user = X_user.astype(float)
 
-    # Prediction
+    # 5. 现在再切片就不会缺列了
+    X_user_final = X_user[all_cols]
+
+    # 6. 预测
     pred = model.predict(X_user_final)[0]
 
-    # Display result
+    # 7. 显示结果
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
 
-    # Gauge chart
+    # 仪表盘
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred,
