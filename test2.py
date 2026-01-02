@@ -4,32 +4,30 @@ import pandas as pd
 import numpy as np
 import joblib
 import plotly.graph_objects as go
-import json   # ← 新增
 
 # -------------------- 0. 保险栓：统一大小写/空格（可选） --------------------
 def safe_encode(val, mapping):
     val = str(val).upper().strip()
     return mapping.get(val, np.mean(list(mapping.values())))
 
-# -------------------- 1. 加载 bundle --------------------
+# -------------------- 1. 加载 3 个独立文件（无 bundle） --------------------
 @st.cache_resource
 def load_pipeline():
-    return joblib.load("xgb_pipeline_no_class.joblib")
+    model   = joblib.load("final_model_only.joblib")
+    mapping = joblib.load("encoder_mapping.json")
+    columns = joblib.load("train_columns.json")
+    return model, mapping, columns
 
-bundle = load_pipeline()
-model   = bundle["model"]
-encoder_mapping = bundle["encoder_mapping"]
-feature_cols    = bundle["feature_cols"]
-cat_cols        = bundle["cat_cols"]
-train_columns   = bundle["train_columns"]
+model, encoder_mapping, train_columns = load_pipeline()
+feature_cols = [c for c in train_columns if c != 'Antibiotic']
+cat_cols     = ['Antibiotic']
 
-# -------------------- 2. 页面布局 --------------------
+# -------------------- 2. 页面布局（以下同原文件） --------------------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
-# -------------------- 3. 侧边栏顺序 & 数值范围 --------------------
 sidebar_order = [
     "Antibiotic", "pH", "Water content(%)", "m(g)", "T(°C)",
     "V(L)", "t(min)", "HCL Conc(mol/L)", "NaOH Conc(mol/L)"
@@ -48,13 +46,13 @@ feature_ranges = {
 
 inputs = {}
 
-# -------------------- 4. 分类特征（动态全部抗生素） --------------------
+# -------------------- 3. 分类特征（动态全部抗生素） --------------------
 for col in sidebar_order:
     if col in cat_cols:
-        options = sorted(encoder_mapping[col].keys())
+        options = sorted(encoder_mapping.keys())
         inputs[col] = st.sidebar.selectbox(col, options)
 
-# -------------------- 5. 数值特征（保留 3 位小数） --------------------
+# -------------------- 4. 数值特征（保留 3 位小数） --------------------
 for col in sidebar_order:
     if col in feature_cols:
         min_val, max_val, default = feature_ranges[col]
@@ -63,14 +61,14 @@ for col in sidebar_order:
             min_value=float(min_val),
             max_value=float(max_val),
             value=float(default),
-            step=0.001,      # ← 允许 3 位小数
+            step=0.001,
             format="%.3f"
         )
 
-# -------------------- 6. Predict 按钮 --------------------
+# -------------------- 5. Predict 按钮 --------------------
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
-# -------------------- 7. 预测逻辑（对齐 train_columns） + 调试打印 --------------------
+# -------------------- 6. 预测逻辑（对齐 train_columns） --------------------
 if predict_btn:
     # 1. 按训练列顺序建空表
     X_user = pd.DataFrame(columns=train_columns)
@@ -81,7 +79,7 @@ if predict_btn:
 
     # 3. 分类映射（带保险栓）
     for cat in cat_cols:
-        X_user[cat] = X_user[cat].map(lambda x: safe_encode(x, encoder_mapping[cat]))
+        X_user[cat] = X_user[cat].map(lambda x: safe_encode(x, encoder_mapping))
 
     # 4. 转数值
     X_user = X_user.astype(float)
