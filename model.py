@@ -61,7 +61,8 @@ def train_xgb_model(data_path="文献数据.xlsx"):
     groups_train = groups.loc[train_mask]
 
     encoder = TargetEncoderCV(categorical_cols, 5, 42)
-    X_train_enc = encoder.fit_transform(X_train, y_train, groups_train)
+    encoder.fit(X_train, y_train, groups_train)
+    X_train_enc = encoder.transform(X_train)
 
     param_dist = {
         "n_estimators": [100, 150, 200, 300, 400, 500],
