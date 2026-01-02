@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 # =============================
 @st.cache_resource
 def load_pipeline():
+    # 直接用你上传的 xgb_pipeline_no_class.joblib
     bundle = joblib.load("xgb_pipeline_no_class.joblib")
     return bundle
 
@@ -18,9 +19,6 @@ model = bundle["model"]
 encoder_mapping = bundle["encoder_mapping"]
 feature_cols = bundle["feature_cols"]  # 数值列
 cat_cols = bundle["cat_cols"]          # 分类列，如 ['Antibiotic']
-
-# ✅ 确保 feature_cols 不包含输出 Degradation
-feature_cols = [f for f in feature_cols if f != 'Degradation']
 
 # =============================
 # 2️⃣ 页面布局
@@ -57,7 +55,10 @@ for cat in cat_cols:
 # 5️⃣ 数值特征输入
 # =============================
 for feat in feature_cols:
-    min_val, max_val, default = feature_ranges.get(feat, (0.0, 100.0, 0.0))
+    if feat not in feature_ranges:
+        min_val, max_val, default = 0.0, 100.0, 0.0
+    else:
+        min_val, max_val, default = feature_ranges[feat]
     inputs[feat] = st.sidebar.number_input(
         label=feat,
         min_value=float(min_val),
@@ -81,12 +82,12 @@ if predict_btn:
     # 分类列映射
     for cat in cat_cols:
         X_user[cat] = X_user[cat].map(encoder_mapping[cat])
-        # 若映射为空则用平均值填充
         if X_user[cat].isna().any():
+            # 若映射为空则用平均值填充
             X_user[cat] = X_user[cat].fillna(np.mean(list(encoder_mapping[cat].values())))
 
-    # 确保列顺序与训练一致
-    final_cols = feature_cols + cat_cols
+    # ✅ 使用模型自身列顺序，严格匹配训练时顺序
+    final_cols = model.get_booster().feature_names
     X_user = X_user[final_cols]
 
     # 预测
