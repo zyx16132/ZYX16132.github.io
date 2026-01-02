@@ -3,6 +3,34 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import joblib
+import numpy as np
+from sklearn.base import BaseEstimator, TransformerMixin
+
+# ======================================================
+# ✅ 关键：必须重新定义 TargetEncoderCV（用于反序列化）
+# ======================================================
+class TargetEncoderCV(BaseEstimator, TransformerMixin):
+    def __init__(self, cat_cols=None, n_splits=5, random_state=42):
+        self.cat_cols = cat_cols
+        self.n_splits = n_splits
+        self.random_state = random_state
+        self.mapping_ = {}
+        self.global_mean_ = None
+
+    def fit(self, X, y=None, groups=None):
+        return self
+
+    def transform(self, X):
+        X_enc = X.copy()
+        for col in self.mapping_:
+            if col in X_enc.columns:
+                X_enc[col] = (
+                    X_enc[col]
+                    .map(self.mapping_[col])
+                    .fillna(self.global_mean_)
+                )
+        return X_enc
+
 
 # ======================================================
 # 页面配置
@@ -34,7 +62,7 @@ except Exception as e:
     st.stop()
 
 # ======================================================
-# 特征列（必须与训练完全一致）
+# 特征列（必须与训练一致）
 # ======================================================
 FEATURE_COLS = [
     'Antibiotic',
@@ -66,15 +94,13 @@ FEATURE_LABELS = [
 st.sidebar.header("Please enter parameters")
 inputs = {}
 
-# ---------- Antibiotic ----------
+# Antibiotic 下拉框
 antibiotic_options = list(encoder.mapping_['Antibiotic'].index)
-
 inputs['Antibiotic'] = st.sidebar.selectbox(
     FEATURE_LABELS[0],
     antibiotic_options
 )
 
-# ---------- 数值输入 ----------
 default_values = {
     'pH': 6.08,
     'Water content(%)': 69.9,
@@ -100,43 +126,25 @@ predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 # ======================================================
 if predict_btn:
     try:
-        # 构建 DataFrame
         X_user = pd.DataFrame([inputs], columns=FEATURE_COLS)
 
-        # === 关键一步：Antibiotic 编码 ===
-        X_user_encoded = encoder.transform(X_user)
+        # ✅ 编码 Antibiotic
+        X_user_enc = encoder.transform(X_user)
 
-        # 预测
-        pred = model.predict(X_user_encoded)[0]
+        # ✅ 预测
+        pred = model.predict(X_user_enc)[0]
 
         st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}`")
 
-        # ---------- 仪表盘 ----------
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=pred,
-            title={'text': "Degradation rate", 'font': {'size': 22}},
-            gauge={
-                'axis': {'range': [0, 1]},
-                'bar': {'color': "darkgreen"},
-                'steps': [
-                    {'range': [0, 0.5], 'color': "lightgray"},
-                    {'range': [0.5, 1], 'color': "lightgreen"}
-                ],
-                'threshold': {
-                    'line': {'color': "red", 'width': 4},
-                    'thickness': 0.75,
-                    'value': pred
-                }
-            }
+            title={'text': "Degradation rate"},
+            gauge={'axis': {'range': [0, 1]}}
         ))
-
         st.plotly_chart(fig, use_container_width=True)
 
     except Exception as e:
-        st.error(
-            f"❌ Prediction failed:\n\n{e}\n\n"
-            "⚠️ Please make sure inputs match the training features."
-        )
+        st.error(f"❌ Prediction failed:\n\n{e}")
 else:
     st.info("Please enter the parameters on the left and click the prediction button.")
