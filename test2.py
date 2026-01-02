@@ -49,7 +49,7 @@ encoder = bundle["encoder"]
 feature_cols = bundle["feature_cols"]
 
 # 加载训练数据用于获取特征范围
-df = pd.read_excel("文献数据.xlsx")
+df = pd.read_excel("data.xlsx")
 X_train = df[feature_cols].copy()
 X_train['Antibiotic'] = df['Antibiotic']
 
