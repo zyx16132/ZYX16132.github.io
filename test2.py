@@ -4,48 +4,19 @@ import pandas as pd
 import numpy as np
 import joblib
 import plotly.graph_objects as go
-from sklearn.base import BaseEstimator, TransformerMixin
 
 # =============================
-# 1️⃣ 定义 TargetEncoderCV（必须和训练时一致）
+# 1️⃣ 加载模型和 encoder（唯一来源）
 # =============================
-class TargetEncoderCV(BaseEstimator, TransformerMixin):
-    def __init__(self, cat_cols, n_splits=5, random_state=42):
-        self.cat_cols = cat_cols
-        self.n_splits = n_splits
-        self.random_state = random_state
-        self.global_mean_ = None
-        self.mapping_ = dict()
+@st.cache_resource
+def load_pipeline():
+    bundle = joblib.load("xgb_pipeline.joblib")
+    return bundle["model"], bundle["encoder"], bundle["feature_cols"], bundle["cat_cols"]
 
-    def fit(self, X, y, groups=None):
-        self.global_mean_ = y.mean()
-        self.mapping_ = dict()
-        for col in self.cat_cols:
-            if col in X.columns:
-                self.mapping_[col] = y.groupby(X[col]).mean()
-            else:
-                self.mapping_[col] = pd.Series(dtype=float)
-        return self
-
-    def transform(self, X, y=None, groups=None):
-        X_encoded = X.copy()
-        for col in self.cat_cols:
-            if col not in X_encoded.columns:
-                continue
-            X_encoded[col] = X_encoded[col].map(self.mapping_[col]).fillna(self.global_mean_)
-        return X_encoded
+model, encoder, feature_cols, cat_cols = load_pipeline()
 
 # =============================
-# 2️⃣ 加载模型和 encoder
-# =============================
-bundle = joblib.load("xgb_pipeline.joblib")
-model = bundle["model"]
-encoder = bundle["encoder"]
-feature_cols = bundle["feature_cols"]  # 数值特征
-cat_col = ['Antibiotic']              # 分类特征
-
-# =============================
-# 3️⃣ 页面布局
+# 2️⃣ 页面布局
 # =============================
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
@@ -54,7 +25,7 @@ st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
 # =============================
-# 4️⃣ 特征范围和默认值
+# 3️⃣ 特征范围和默认值（与你训练集一致）
 # =============================
 feature_ranges = {
     'pH': (2.0, 12.0, 6.08),
@@ -69,66 +40,74 @@ feature_ranges = {
 
 inputs = {}
 
-# 分类特征选择框
-ANTIBIOTIC_LIST = list(encoder.mapping_['Antibiotic'].index)
-inputs['Antibiotic'] = st.sidebar.selectbox("Type of Antibiotic", ANTIBIOTIC_LIST)
+# =============================
+# 4️⃣ 分类特征（严格来自 encoder）
+# =============================
+antibiotic_list = list(encoder.mapping_['Antibiotic'].index)
+inputs['Antibiotic'] = st.sidebar.selectbox(
+    "Type of Antibiotic",
+    antibiotic_list
+)
 
-# 数值特征输入框
-for feat, (min_val, max_val, default) in feature_ranges.items():
+# =============================
+# 5️⃣ 数值特征输入
+# =============================
+for feat in feature_cols:
+    min_val, max_val, default = feature_ranges[feat]
     inputs[feat] = st.sidebar.number_input(
-        f"{feat} ({min_val}, {max_val})",
-        value=float(default),
+        feat,
         min_value=float(min_val),
         max_value=float(max_val),
+        value=float(default),
         format="%.3f"
     )
 
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # =============================
-# 5️⃣ 预测逻辑（只修改 app.py，不碰模型）
+# 6️⃣ 预测逻辑（完全对齐训练）
 # =============================
 if predict_btn:
-    # 构造用户输入 DataFrame
+    # ---------- 构造 DataFrame ----------
     X_user = pd.DataFrame([inputs])
 
-    # 分类列编码
+    # ---------- Target Encoding ----------
     X_user_enc = encoder.transform(X_user)
 
-    # -----------------------------
-    # 对齐 XGBoost 训练列顺序
-    # -----------------------------
-    trained_cols = model.get_booster().feature_names
-    X_user_enc_aligned = pd.DataFrame()
-    for col in trained_cols:
-        if col in X_user_enc.columns:
-            X_user_enc_aligned[col] = X_user_enc[col]
-        else:
-            # 如果训练时有列但用户输入没有，则填 0（不会影响预测结果）
-            X_user_enc_aligned[col] = 0.0
-    X_user_enc = X_user_enc_aligned
+    # ---------- 严格列顺序 ----------
+    final_cols = feature_cols + cat_cols
+    X_user_enc = X_user_enc[final_cols]
 
-    # -----------------------------
-    # 预测
-    # -----------------------------
+    # ---------- 预测 ----------
     pred = model.predict(X_user_enc)[0]
 
-    # -----------------------------
-    # 显示结果
-    # -----------------------------
-    st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}%`")
+    # =============================
+    # 7️⃣ 展示结果
+    # =============================
+    st.markdown(f"### ✅ Predicted degradation rate: **{pred:.2f}%**")
 
-    # 仪表盘
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred,
-        title={'text': "Degradation rate (%)"},
-        gauge={'axis': {'range': [0, 100]}}
+        number={"suffix": "%"},
+        title={"text": "Degradation rate"},
+        gauge={
+            "axis": {"range": [0, 100]},
+            "bar": {"color": "darkgreen"},
+            "steps": [
+                {"range": [0, 50], "color": "#f2f2f2"},
+                {"range": [50, 100], "color": "#c7e9c0"}
+            ],
+        }
     ))
+
     st.plotly_chart(fig, use_container_width=True)
 
 else:
     st.info("Please enter the parameters on the left and click Predict.")
 
 st.markdown("---")
-st.markdown("*This system uses a unified machine learning pipeline to ensure consistent preprocessing and prediction.*")
+st.markdown(
+    "*This application uses the final trained XGBoost model and the same "
+    "target encoding strategy as the training pipeline to ensure full reproducibility.*"
+)
