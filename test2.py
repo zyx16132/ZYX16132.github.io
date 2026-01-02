@@ -51,6 +51,7 @@ st.markdown("---")
 # ---------- 加载 pipeline ----------
 @st.cache_resource
 def load_pipeline():
+    # 加载整个 pipeline（encoder + xgb）
     pipe = joblib.load("xgb_pipeline_groupCV.pkl")
     return pipe
 
@@ -74,7 +75,7 @@ feat_cols_cn = ['Type of Antibiotic',
 st.sidebar.header("Please enter parameters")
 inputs = {}
 
-# 自动获取 Antibiotic 类别
+# Antibiotic 类别自动获取
 encoder = pipe.named_steps['encoder']
 antibiotics_list = list(encoder.mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox(feat_cols_cn[0], antibiotics_list)
@@ -102,7 +103,7 @@ if btn:
         # 构建 DataFrame
         X_user = pd.DataFrame([inputs], columns=feat_cols)
 
-        # 预测
+        # ✅ 使用 pipeline 的 predict，pipeline 内会自动 encode
         pred = pipe.predict(X_user)[0]
 
         st.markdown(f"### Predicted Degradation rate: `{pred:.3f}`")
