@@ -91,22 +91,24 @@ if predict_btn:
     pred = model.predict(X_user_final.values)[0]
 
     # 7. 结果与仪表盘
-    st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=pred,
-        number={"suffix": "%"},
-        title={"text": "Degradation rate"},
-        gauge={
-            "axis": {"range": [0, 100]},
-            "bar": {"color": "darkgreen"},
-            "steps": [
-                {"range": [0, 50], "color": "#f2f2f2"},
-                {"range": [50, 100], "color": "#c7e9c0"}
-            ],
-        }
-    ))
-    st.plotly_chart(fig, use_container_width=True)
+pred_pct = pred * 100  # ← 关键：0-1 小数 → 百分号
+st.markdown(f"### ✅ Predicted Degradation rate: **{pred_pct:.2f}%**")
+
+fig = go.Figure(go.Indicator(
+    mode="gauge+number",
+    value=pred_pct,  # ← 传百分比
+    number={"suffix": "%"},
+    title={"text": "Degradation rate"},
+    gauge={
+        "axis": {"range": [0, 100]},
+        "bar": {"color": "darkgreen"},
+        "steps": [
+            {"range": [0, 50], "color": "#f2f2f2"},
+            {"range": [50, 100], "color": "#c7e9c0"}
+        ],
+    }
+))
+st.plotly_chart(fig, use_container_width=True)
 
 else:
     st.info("Please enter the parameters on the left and click Predict.")
