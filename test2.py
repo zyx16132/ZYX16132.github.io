@@ -8,10 +8,12 @@ import plotly.graph_objects as go
 # -------------------- 0. 保险栓：统一大小写/空格（可选） --------------------
 def safe_encode(val, mapping):
     val = str(val).upper().strip()
-    # 当字典为空时，直接返回 0.0，不再用 np.mean
-    if not mapping:
+    # 1. 空字典直接返回 0，不再用 np.mean
+    if not mapping or not mapping.values():
         return 0.0
-    return mapping.get(val, np.mean(list(mapping.values())))
+    # 2. 有值时正常映射
+    default = np.mean(list(mapping.values()))
+    return mapping.get(val, default)
 
 # -------------------- 1. 加载 3 个独立文件（无 bundle） --------------------
 @st.cache_resource
