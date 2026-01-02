@@ -1,15 +1,15 @@
 # app.py
 import streamlit as st
 import pandas as pd
-import numpy as np
 import joblib
 import plotly.graph_objects as go
 
 # =============================
-# 1️⃣ 加载模型和 encoder（唯一来源）
+# 1️⃣ 加载训练好的模型和 encoder
 # =============================
 @st.cache_resource
 def load_pipeline():
+    # 从 joblib 文件加载模型和 encoder
     bundle = joblib.load("xgb_pipeline.joblib")
     return bundle["model"], bundle["encoder"], bundle["feature_cols"], bundle["cat_cols"]
 
@@ -21,11 +21,10 @@ model, encoder, feature_cols, cat_cols = load_pipeline()
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
-
 st.sidebar.header("Please enter parameters")
 
 # =============================
-# 3️⃣ 特征范围和默认值（与你训练集一致）
+# 3️⃣ 特征范围和默认值（保持与训练一致）
 # =============================
 feature_ranges = {
     'pH': (2.0, 12.0, 6.08),
@@ -41,7 +40,7 @@ feature_ranges = {
 inputs = {}
 
 # =============================
-# 4️⃣ 分类特征（严格来自 encoder）
+# 4️⃣ 分类特征选择（严格来自 encoder）
 # =============================
 antibiotic_list = list(encoder.mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox(
@@ -65,20 +64,19 @@ for feat in feature_cols:
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # =============================
-# 6️⃣ 预测逻辑（完全对齐训练）
+# 6️⃣ 预测逻辑
 # =============================
 if predict_btn:
-    # ---------- 构造 DataFrame ----------
     X_user = pd.DataFrame([inputs])
 
-    # ---------- Target Encoding ----------
+    # 使用已保存的 encoder 进行编码
     X_user_enc = encoder.transform(X_user)
 
-    # ---------- 严格列顺序 ----------
+    # 严格列顺序对齐训练阶段
     final_cols = feature_cols + cat_cols
     X_user_enc = X_user_enc[final_cols]
 
-    # ---------- 预测 ----------
+    # 预测
     pred = model.predict(X_user_enc)[0]
 
     # =============================
@@ -100,7 +98,6 @@ if predict_btn:
             ],
         }
     ))
-
     st.plotly_chart(fig, use_container_width=True)
 
 else:
