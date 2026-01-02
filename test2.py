@@ -1,6 +1,7 @@
 # app.py
 import streamlit as st
 import pandas as pd
+import numpy as np
 import shap
 import plotly.graph_objects as go
 import joblib
@@ -10,26 +11,37 @@ st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
-# ---------- 加载模型和 SHAP Explainer ----------
+# ---------- 加载模型和编码器 ----------
 @st.cache_resource
-def load_model_and_explainer():
+def load_model_and_encoder():
     model = joblib.load("xgb_best.pkl")
-    # 这里暂时不传 X 给 explainer，预测时再用 shap.Explainer
-    return model
+    encoder = joblib.load("encoder.pkl")  # 训练时保存的 TargetEncoderCV
+    return model, encoder
 
-model = load_model_and_explainer()
+model, encoder = load_model_and_encoder()
 
 # ---------- 特征名 ----------
-feat_cols = ['Class', 'pH', 'Water content(%)', 'm(g)', 'T(°C)',
-             'HR(°C/min)', 'V(L)', 't(min)', 'Conc(mol/L)']
-feat_cols_cn = ['Types of antibiotics', 'Initial environmental pH [2,12](Mean 6.08)', 'Water content(%) [5.35,98.1](Mean 69.9)',
-                'Quality(g) [1,500](Mean 79.36)', 'Reaction temperature(°C) [0,340](Mean 117.8)',
-                'Reactor volume(L) [0.05,1](Mean 0.23)', 'Reaction time(min) [0,480](Mean 64.59)', 'Acid concentration(mol/L) [0,0.6](Mean 0.06)', 'Alkali concentration(mol/L) [0,0.6](Mean 0.01)']
+feat_cols = ['Antibiotic', 'pH', 'Water content(%)', 'm(g)', 'T(°C)',
+             'V(L)', 't(min)', 'HCL Conc(mol/L)', 'NaOH Conc(mol/L)']
+feat_cols_cn = ['Type of Antibiotic', 
+                'Initial environmental pH', 
+                'Water content(%)', 
+                'Quality(g)', 
+                'Reaction temperature(°C)', 
+                'Reactor volume(L)', 
+                'Reaction time(min)', 
+                'HCL concentration(mol/L)', 
+                'NaOH concentration(mol/L)']
 
 # ---------- 侧边栏输入 ----------
 st.sidebar.header("Please enter parameters")
 inputs = {}
-for col, col_cn in zip(feat_cols, feat_cols_cn):
+
+# Antibiotic 用 selectbox，其余用 number_input
+antibiotics_list = ['Antibiotic A', 'Antibiotic B', 'Antibiotic C']  # 这里根据你的训练数据改
+inputs['Antibiotic'] = st.sidebar.selectbox(feat_cols_cn[0], antibiotics_list)
+
+for col, col_cn in zip(feat_cols[1:], feat_cols_cn[1:]):
     inputs[col] = st.sidebar.number_input(col_cn, value=0.0, format="%.3f")
 
 btn = st.sidebar.button("🔍 Predict degradation rate")
@@ -37,14 +49,17 @@ btn = st.sidebar.button("🔍 Predict degradation rate")
 # ---------- 主界面 ----------
 if btn:
     X_user = pd.DataFrame([inputs])
-    pred = model.predict(X_user)[0]
-    st.markdown(f"### Predict degradation rate： `{pred:.3f}`")
+    # 编码 Antibiotic
+    X_user_encoded = encoder.transform(X_user)
+    
+    pred = model.predict(X_user_encoded)[0]
+    st.markdown(f"### Predicted Degradation rate: `{pred:.3f}`")
 
-    # 仪表盘
+    # 仪表盘显示
     fig_gauge = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred,
-        title={'text': "degradation rate", 'font': {'size': 24}},
+        title={'text': "Degradation rate", 'font': {'size': 24}},
         gauge={'axis': {'range': [0, 1]},
                'bar': {'color': "darkgreen"},
                'steps': [{'range': [0, 0.5], 'color': "lightgray"},
