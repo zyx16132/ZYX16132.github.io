@@ -102,7 +102,7 @@ if predict_btn:
     X_user_final = X_user[all_cols]
 
     # 6. 预测
-    pred = model.predict(X_user_final)[0]
+    pred = model.predict(X_user_final.values)[0]   # 加 .values 即可
 
     # 7. 显示结果
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
