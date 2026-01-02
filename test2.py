@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -6,7 +5,7 @@ import joblib
 import plotly.graph_objects as go
 
 # =============================
-# 1️⃣ 加载模型 bundle（无需自定义类）
+# 1️⃣ 加载模型 bundle
 # =============================
 @st.cache_resource
 def load_pipeline():
@@ -28,9 +27,9 @@ st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
 # =============================
-# 3️⃣ 左侧显示顺序（随意）和数值范围
+# 3️⃣ 左侧顺序（随意），直接英文显示
 # =============================
-# 顺序可以任意，但列名必须和训练时一致（英文原名）
+# sidebar_order 可随意排列，但 key 必须是训练时英文列名
 sidebar_order = [
     "Antibiotic", "pH", "Water content(%)", "m(g)", "T(°C)",
     "V(L)", "t(min)", "HCL Conc(mol/L)", "NaOH Conc(mol/L)"
@@ -50,18 +49,13 @@ feature_ranges = {
 inputs = {}
 
 # =============================
-# 4️⃣ 分类特征输入（selectbox）
+# 4️⃣ 左侧输入
 # =============================
 for col in sidebar_order:
-    if col in cat_cols:
+    if col in cat_cols:  # 分类
         options = list(encoder_mapping[col].keys())
         inputs[col] = st.sidebar.selectbox(col, options)
-
-# =============================
-# 5️⃣ 数值特征输入（number_input）
-# =============================
-for col in sidebar_order:
-    if col in feature_cols:
+    elif col in feature_cols:  # 数值
         min_val, max_val, default = feature_ranges[col]
         inputs[col] = st.sidebar.number_input(
             label=col,
@@ -72,12 +66,12 @@ for col in sidebar_order:
         )
 
 # =============================
-# 6️⃣ Predict 按钮
+# 5️⃣ Predict 按钮
 # =============================
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # =============================
-# 7️⃣ 预测逻辑
+# 6️⃣ 预测逻辑
 # =============================
 if predict_btn:
     X_user = pd.DataFrame([inputs])
@@ -88,13 +82,12 @@ if predict_btn:
         if X_user[cat].isna().any():
             X_user[cat] = X_user[cat].fillna(np.mean(list(encoder_mapping[cat].values())))
 
-    # 严格按训练列顺序
+    # 按训练列顺序
     X_user_final = X_user[feature_cols + cat_cols]
 
     # 预测
     pred = model.predict(X_user_final)[0]
 
-    # 显示结果
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
 
     # 仪表盘
