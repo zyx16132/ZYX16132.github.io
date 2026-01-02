@@ -42,80 +42,103 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
                 X_encoded[col] = X_encoded[col].map(self.mapping_[col]).fillna(self.global_mean_)
         return X_encoded
 
-# ======================================================
-# 1️⃣ 加载模型 + 编码器 + 特征列
-# ======================================================
+# 加载模型、编码器和特征列
 bundle = joblib.load("xgb_pipeline.joblib")
 model = bundle["model"]
 encoder = bundle["encoder"]
 feature_cols = bundle["feature_cols"]
 
-# ======================================================
-# 2️⃣ 读取训练数据（仅用来获取范围，不做训练）
-# ======================================================
-df = pd.read_excel("data.xlsx")  # 替换为你的本地训练数据路径
+# 加载训练数据用于获取特征范围
+df = pd.read_excel("文献数据.xlsx")
+X_train = df[feature_cols].copy()
+X_train['Antibiotic'] = df['Antibiotic']
 
-categorical_cols = ['Antibiotic']
-numeric_cols = [c for c in feature_cols if c not in categorical_cols]
+# 获取每列最小值和最大值（数值列）
+num_cols = [c for c in feature_cols if c != 'Antibiotic']
+feature_ranges = {col: (X_train[col].min(), X_train[col].max()) for col in num_cols}
 
-# ======================================================
-# 3️⃣ Streamlit 页面配置
-# ======================================================
-st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
-st.markdown("---")
 
-st.sidebar.header("Please enter parameters")
+# 用户输入
+antibiotic = st.selectbox(
+    "Type of Antibiotic",
+    ["CEP", "AMP", "其他"]  # 可根据训练数据修改
+)
 
-inputs = {}
+ph = st.number_input(
+    f"pH ({feature_ranges['pH'][0]} ~ {feature_ranges['pH'][1]})",
+    min_value=float(feature_ranges['pH'][0]),
+    max_value=float(feature_ranges['pH'][1]),
+    value=float((feature_ranges['pH'][0]+feature_ranges['pH'][1])/2)
+)
 
-# 抗生素选择
-ANTIBIOTIC_LIST = list(encoder.mapping_['Antibiotic'].index)
-inputs['Antibiotic'] = st.sidebar.selectbox("Type of Antibiotic", ANTIBIOTIC_LIST)
+water_content = st.number_input(
+    f"Water content(%) ({feature_ranges['Water content(%)'][0]} ~ {feature_ranges['Water content(%)'][1]})",
+    min_value=float(feature_ranges['Water content(%)'][0]),
+    max_value=float(feature_ranges['Water content(%)'][1]),
+    value=float((feature_ranges['Water content(%)'][0]+feature_ranges['Water content(%)'][1])/2)
+)
 
-# 数值输入，根据训练数据 min/max 设置范围
-for col in numeric_cols:
-    min_val = float(df[col].min())
-    max_val = float(df[col].max())
-    default_val = float(df[col].mean())
-    inputs[col] = st.sidebar.number_input(
-        col,
-        min_value=min_val,
-        max_value=max_val,
-        value=default_val,
-        format="%.3f"
-    )
+m = st.number_input(
+    f"m(g) ({feature_ranges['m(g)'][0]} ~ {feature_ranges['m(g)'][1]})",
+    min_value=float(feature_ranges['m(g)'][0]),
+    max_value=float(feature_ranges['m(g)'][1]),
+    value=float((feature_ranges['m(g)'][0]+feature_ranges['m(g)'][1])/2)
+)
 
-predict_btn = st.sidebar.button("🔍 Predict degradation rate")
+T = st.number_input(
+    f"T(°C) ({feature_ranges['T(°C)'][0]} ~ {feature_ranges['T(°C)'][1]})",
+    min_value=float(feature_ranges['T(°C)'][0]),
+    max_value=float(feature_ranges['T(°C)'][1]),
+    value=float((feature_ranges['T(°C)'][0]+feature_ranges['T(°C)'][1])/2)
+)
 
-# ======================================================
-# 4️⃣ 预测逻辑
-# ======================================================
-if predict_btn:
-    X_user = pd.DataFrame([inputs])
+V = st.number_input(
+    f"V(L) ({feature_ranges['V(L)'][0]} ~ {feature_ranges['V(L)'][1]})",
+    min_value=float(feature_ranges['V(L)'][0]),
+    max_value=float(feature_ranges['V(L)'][1]),
+    value=float((feature_ranges['V(L)'][0]+feature_ranges['V(L)'][1])/2)
+)
 
-    # 确保顺序和训练特征一致
-    X_user = X_user[feature_cols]
+t = st.number_input(
+    f"t(min) ({feature_ranges['t(min)'][0]} ~ {feature_ranges['t(min)'][1]})",
+    min_value=float(feature_ranges['t(min)'][0]),
+    max_value=float(feature_ranges['t(min)'][1]),
+    value=float((feature_ranges['t(min)'][0]+feature_ranges['t(min)'][1])/2)
+)
 
-    # 编码
-    X_user_enc = encoder.transform(X_user)
+HCL = st.number_input(
+    f"HCL Conc(mol/L) ({feature_ranges['HCL Conc(mol/L)'][0]} ~ {feature_ranges['HCL Conc(mol/L)'][1]})",
+    min_value=float(feature_ranges['HCL Conc(mol/L)'][0]),
+    max_value=float(feature_ranges['HCL Conc(mol/L)'][1]),
+    value=float((feature_ranges['HCL Conc(mol/L)'][0]+feature_ranges['HCL Conc(mol/L)'][1])/2)
+)
 
-    # 预测
-    pred = model.predict(X_user_enc)[0]
+NaOH = st.number_input(
+    f"NaOH Conc(mol/L) ({feature_ranges['NaOH Conc(mol/L)'][0]} ~ {feature_ranges['NaOH Conc(mol/L)'][1]})",
+    min_value=float(feature_ranges['NaOH Conc(mol/L)'][0]),
+    max_value=float(feature_ranges['NaOH Conc(mol/L)'][1]),
+    value=float((feature_ranges['NaOH Conc(mol/L)'][0]+feature_ranges['NaOH Conc(mol/L)'][1])/2)
+)
 
-    # 显示结果
-    st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}`")
+# 构建用户输入 DataFrame
+X_user = pd.DataFrame({
+    "pH": [ph],
+    "Water content(%)": [water_content],
+    "m(g)": [m],
+    "T(°C)": [T],
+    "V(L)": [V],
+    "t(min)": [t],
+    "HCL Conc(mol/L)": [HCL],
+    "NaOH Conc(mol/L)": [NaOH],
+    "Antibiotic": [antibiotic]
+})
 
-    # 仪表盘
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=pred,
-        title={'text': "Degradation rate"},
-        gauge={'axis': {'range': [0, 100]}}
-    ))
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("Please enter parameters on the left and click Predict.")
+# 编码分类变量
+X_user_enc = encoder.transform(X_user)
 
-st.markdown("---")
-st.markdown("*This system uses the exact trained model and preprocessing from your local environment.*")
+# 预测
+pred = model.predict(X_user_enc)[0]
+
+st.write(f"Predicted Degradation: {pred:.2f}")
+
