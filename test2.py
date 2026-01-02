@@ -12,8 +12,7 @@ def safe_encode(val, mapping):
     if not mapping or not mapping.values():
         return 0.0
     # 2. 有值时正常映射
-    default = np.mean(list(mapping.values()))
-    return mapping.get(val, default)
+    return mapping.get(val, np.mean(list(mapping.values())))
 
 # -------------------- 1. 加载 3 个独立文件（无 bundle） --------------------
 @st.cache_resource
