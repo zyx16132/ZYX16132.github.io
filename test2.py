@@ -3,69 +3,33 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import joblib
-import numpy as np
-from sklearn.base import BaseEstimator, TransformerMixin
-
-# ======================================================
-# ✅ 关键：必须重新定义 TargetEncoderCV（用于反序列化）
-# ======================================================
-class TargetEncoderCV(BaseEstimator, TransformerMixin):
-    def __init__(self, cat_cols=None, n_splits=5, random_state=42):
-        self.cat_cols = cat_cols
-        self.n_splits = n_splits
-        self.random_state = random_state
-        self.mapping_ = {}
-        self.global_mean_ = None
-
-    def fit(self, X, y=None, groups=None):
-        return self
-
-    def transform(self, X):
-        X_enc = X.copy()
-        for col in self.mapping_:
-            if col in X_enc.columns:
-                X_enc[col] = (
-                    X_enc[col]
-                    .map(self.mapping_[col])
-                    .fillna(self.global_mean_)
-                )
-        return X_enc
-
 
 # ======================================================
 # 页面配置
 # ======================================================
-st.set_page_config(
-    page_title="Degradation rate prediction",
-    layout="centered"
-)
-
+st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
 # ======================================================
-# 加载模型 & encoder
+# 加载模型 + encoder（已训练好）
 # ======================================================
 @st.cache_resource
-def load_model():
-    return joblib.load("xgb_best.pkl")
-
-@st.cache_resource
-def load_encoder():
-    return joblib.load("encoder.pkl")
+def load_model_and_encoder():
+    model = joblib.load("xgb_best.pkl")      # 你的 XGB 模型
+    encoder = joblib.load("encoder.pkl")     # TargetEncoderCV
+    return model, encoder
 
 try:
-    model = load_model()
-    encoder = load_encoder()
+    model, encoder = load_model_and_encoder()
 except Exception as e:
     st.error(f"❌ Model or encoder loading failed:\n\n{e}")
     st.stop()
 
 # ======================================================
-# 特征列（必须与训练一致）
+# ⚠️ 必须与模型训练时完全一致的特征顺序
 # ======================================================
-FEATURE_COLS = [
-    'Antibiotic',
+MODEL_FEATURES = [
     'pH',
     'Water content(%)',
     'm(g)',
@@ -73,20 +37,23 @@ FEATURE_COLS = [
     'V(L)',
     't(min)',
     'HCL Conc(mol/L)',
-    'NaOH Conc(mol/L)'
+    'NaOH Conc(mol/L)',
+    'Degradation',   # ⚠️ 占位列（必须）
+    'Antibiotic'
 ]
 
-FEATURE_LABELS = [
-    'Type of Antibiotic',
-    'Initial environmental pH [2,12]',
-    'Water content (%) [5.35,98.1]',
-    'Quality (g) [1,500]',
-    'Reaction temperature (°C) [0,340]',
-    'Reactor volume (L) [0.05,1]',
-    'Reaction time (min) [0,480]',
-    'HCL concentration (mol/L) [0,0.6]',
-    'NaOH concentration (mol/L) [0,0.6]'
-]
+# 页面显示名称
+LABELS = {
+    'Antibiotic': 'Type of Antibiotic',
+    'pH': 'Initial environmental pH [2,12]',
+    'Water content(%)': 'Water content (%) [5.35,98.1]',
+    'm(g)': 'Quality (g) [1,500]',
+    'T(°C)': 'Reaction temperature (°C) [0,340]',
+    'V(L)': 'Reactor volume (L) [0.05,1]',
+    't(min)': 'Reaction time (min) [0,480]',
+    'HCL Conc(mol/L)': 'HCL concentration (mol/L) [0,0.6]',
+    'NaOH Conc(mol/L)': 'NaOH concentration (mol/L) [0,0.6]'
+}
 
 # ======================================================
 # 侧边栏输入
@@ -95,13 +62,13 @@ st.sidebar.header("Please enter parameters")
 inputs = {}
 
 # Antibiotic 下拉框
-antibiotic_options = list(encoder.mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox(
-    FEATURE_LABELS[0],
-    antibiotic_options
+    LABELS['Antibiotic'],
+    list(encoder.mapping_['Antibiotic'].index)
 )
 
-default_values = {
+# 数值输入
+defaults = {
     'pH': 6.08,
     'Water content(%)': 69.9,
     'm(g)': 79.36,
@@ -112,11 +79,9 @@ default_values = {
     'NaOH Conc(mol/L)': 0.01
 }
 
-for col, label in zip(FEATURE_COLS[1:], FEATURE_LABELS[1:]):
-    inputs[col] = st.sidebar.number_input(
-        label,
-        value=float(default_values[col]),
-        format="%.3f"
+for k, v in defaults.items():
+    inputs[k] = st.sidebar.number_input(
+        LABELS[k], value=float(v), format="%.3f"
     )
 
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
@@ -126,12 +91,17 @@ predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 # ======================================================
 if predict_btn:
     try:
-        X_user = pd.DataFrame([inputs], columns=FEATURE_COLS)
+        # 构建 DataFrame
+        X_user = pd.DataFrame([inputs])
 
-        # ✅ 编码 Antibiotic
+        # 🔑 补占位 Degradation
+        X_user['Degradation'] = 0.0
+
+        # 🔑 按训练顺序重排
+        X_user = X_user[MODEL_FEATURES]
+
+        # 编码 + 预测
         X_user_enc = encoder.transform(X_user)
-
-        # ✅ 预测
         pred = model.predict(X_user_enc)[0]
 
         st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}`")
@@ -147,4 +117,4 @@ if predict_btn:
     except Exception as e:
         st.error(f"❌ Prediction failed:\n\n{e}")
 else:
-    st.info("Please enter the parameters on the left and click the prediction button.")
+    st.info("Please enter parameters on the left and click Predict.")
