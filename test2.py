@@ -67,7 +67,7 @@ feature_ranges = {
 
 inputs = {}
 
-# 分类特征选择框
+# 分类特征选择框（严格按训练时类别）
 ANTIBIOTIC_LIST = list(encoder.mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox("Type of Antibiotic", ANTIBIOTIC_LIST)
 
@@ -84,24 +84,20 @@ for feat, (min_val, max_val, default) in feature_ranges.items():
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # -------------------------
-# 预测逻辑
+# 5️⃣ 预测逻辑
+# -------------------------
 if predict_btn:
     X_user = pd.DataFrame([inputs])
 
-    # 分类列编码
+    # 分类列编码（严格按训练映射）
     X_user_enc = encoder.transform(X_user)
 
-    # ⚠️ 确保 XGBoost 列和训练时一致
-    # 使用训练时编码后的列名
+    # ⚠️ 保证列顺序和训练时完全一致，不补值，不新增列
     trained_cols = model.get_booster().feature_names
-    for col in trained_cols:
-        if col not in X_user_enc.columns:
-            X_user_enc[col] = 0.0  # 或 encoder.global_mean_，不会改变预测结果
     X_user_enc = X_user_enc[trained_cols]
 
     # 预测
     pred = model.predict(X_user_enc)[0]
-
 
     # 显示结果
     st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}%`")
