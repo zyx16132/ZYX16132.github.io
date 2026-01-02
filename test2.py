@@ -5,12 +5,6 @@ import numpy as np
 import joblib
 import plotly.graph_objects as go
 
-# -------------------- 0. 保险栓：统一大小写/空格（可选） --------------------
-# 直接映射，无保险
-def safe_encode(val, mapping):
-    val = str(val).upper().strip()
-    return mapping.get(val, np.mean(list(mapping.values())))
-
 # -------------------- 1. 加载 3 个独立文件（无 bundle） --------------------
 @st.cache_resource
 def load_pipeline():
@@ -23,7 +17,7 @@ model, encoder_mapping, train_columns = load_pipeline()
 feature_cols = [c for c in train_columns if c != 'Antibiotic']
 cat_cols     = ['Antibiotic']
 
-# -------------------- 2. 页面布局（以下同原文件） --------------------
+# -------------------- 2. 页面布局 --------------------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
@@ -50,7 +44,7 @@ inputs = {}
 # -------------------- 3. 分类特征（动态全部抗生素） --------------------
 for col in sidebar_order:
     if col in cat_cols:
-        options = sorted(encoder_mapping[col].keys())   # ← 取里面的 key
+        options = sorted(encoder_mapping[col].keys())
         inputs[col] = st.sidebar.selectbox(col, options)
 
 # -------------------- 4. 数值特征（保留 3 位小数） --------------------
@@ -78,9 +72,10 @@ if predict_btn:
     for col, val in inputs.items():
         X_user.loc[0, col] = val
 
-    # 3. 分类映射（带保险栓）
+    # 3. 分类映射（无手写函数，永无除零）
     for cat in cat_cols:
-        X_user[cat] = X_user[cat].map(lambda x: safe_encode(x, encoder_mapping))
+        mapping = encoder_mapping[cat]
+        X_user[cat] = X_user[cat].map(mapping).fillna(np.mean(list(mapping.values())))
 
     # 4. 转数值
     X_user = X_user.astype(float)
