@@ -58,9 +58,9 @@ pipe = load_pipeline()
 # ---------- 特征名 ----------
 feat_cols = ['Antibiotic', 'pH', 'Water content(%)', 'm(g)', 'T(°C)',
              'V(L)', 't(min)', 'HCL Conc(mol/L)', 'NaOH Conc(mol/L)']
-feat_cols_cn = ['Type of Antibiotic', 'Initial environmental pH', 'Water content(%)',
-                'Quality(g)', 'Reaction temperature(°C)', 'Reactor volume(L)',
-                'Reaction time(min)', 'HCL concentration(mol/L)', 'NaOH concentration(mol/L)']
+feat_cols_cn = ['Type of Antibiotic', 'Initial environmental pH[2,12]', 'Water content(%)[5.35,98.1]',
+                'Quality(g)[1,500]', 'Reaction temperature(°C)[0,340]', 'Reactor volume(L)[0.05,1]',
+                'Reaction time(min)[0,480]', 'HCL concentration(mol/L)[0,0.6]', 'NaOH concentration(mol/L)[0,0.6]']
 
 # ---------- 侧边栏输入 ----------
 st.sidebar.header("Please enter parameters")
