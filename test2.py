@@ -4,6 +4,31 @@ import pandas as pd
 import plotly.graph_objects as go
 import joblib
 
+from sklearn.base import BaseEstimator, TransformerMixin
+import pandas as pd
+import numpy as np
+
+class PipelineTargetEncoder(BaseEstimator, TransformerMixin):
+    def __init__(self, cat_cols=None, n_splits=5, random_state=42):
+        self.cat_cols = cat_cols
+        self.n_splits = n_splits
+        self.random_state = random_state
+        self.global_mean_ = None
+        self.mapping_ = dict()
+
+    def fit(self, X, y=None, groups=None):
+        # ⚠️ 预测阶段不会调用 fit，这里只为 pickle 兼容
+        return self
+
+    def transform(self, X):
+        X_encoded = X.copy()
+        for col in self.mapping_:
+            if col in X_encoded.columns:
+                X_encoded[col] = X_encoded[col].map(
+                    self.mapping_[col]
+                ).fillna(self.global_mean_)
+        return X_encoded
+
 # ======================================================
 # Streamlit 页面配置
 # ======================================================
