@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import plotly.graph_objects as go
+import json   # ← 新增
 
 # -------------------- 0. 保险栓：统一大小写/空格（可选） --------------------
 def safe_encode(val, mapping):
@@ -53,7 +54,7 @@ for col in sidebar_order:
         options = sorted(encoder_mapping[col].keys())
         inputs[col] = st.sidebar.selectbox(col, options)
 
-# -------------------- 5. 数值特征 --------------------
+# -------------------- 5. 数值特征（保留 3 位小数） --------------------
 for col in sidebar_order:
     if col in feature_cols:
         min_val, max_val, default = feature_ranges[col]
@@ -62,13 +63,14 @@ for col in sidebar_order:
             min_value=float(min_val),
             max_value=float(max_val),
             value=float(default),
+            step=0.001,      # ← 允许 3 位小数
             format="%.3f"
         )
 
 # -------------------- 6. Predict 按钮 --------------------
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
-# -------------------- 7. 预测逻辑（对齐 train_columns） --------------------
+# -------------------- 7. 预测逻辑（对齐 train_columns） + 调试打印 --------------------
 if predict_btn:
     # 1. 按训练列顺序建空表
     X_user = pd.DataFrame(columns=train_columns)
@@ -107,6 +109,12 @@ if predict_btn:
         }
     ))
     st.plotly_chart(fig, use_container_width=True)
+
+    # 8. 🔍 调试打印（一次性定位差异）
+    if st.checkbox("🔍 调试：打印真实输入"):
+        st.write("网页实际收到的 inputs:", inputs)
+        st.write("训练列顺序:", train_columns)
+        st.write("映射后 DataFrame:", X_user_final)
 
 else:
     st.info("Please enter the parameters on the left and click Predict.")
