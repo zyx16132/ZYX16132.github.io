@@ -87,11 +87,13 @@ inputs['Antibiotic'] = st.sidebar.selectbox("Type of Antibiotic", ANTIBIOTIC_LIS
 
 # 数值特征
 for feat, (min_val, max_val, default) in feature_ranges.items():
-    inputs[feat] = st.sidebar.number_input(f"{feat} ({min_val}, {max_val})", 
-                                           value=float(default), 
-                                           min_value=min_val, 
-                                           max_value=max_val, 
-                                           format="%.3f")
+   inputs[feat] = st.sidebar.number_input(
+    f"{feat} ({min_val}, {max_val})",
+    value=float(default),
+    min_value=min_val,
+    max_value=max_val,
+    format="%.3f"
+)
 
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
