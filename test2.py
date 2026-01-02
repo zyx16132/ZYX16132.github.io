@@ -43,6 +43,15 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
                 X_encoded[col] = X_encoded[col].map(self.mapping_[col]).fillna(self.global_mean_)
         return X_encoded
 
+# ---------------- 自定义 PipelineTargetEncoder ----------------
+class PipelineTargetEncoder(TargetEncoderCV):
+    def transform(self, X, y=None, groups=None):
+        X_encoded = super().transform(X, y=y, groups=groups)
+        # 保证输出只包含训练时的特征列
+        feature_cols = ['Antibiotic', 'pH', 'Water content(%)', 'm(g)',
+                        'T(°C)', 'V(L)', 't(min)', 'HCL Conc(mol/L)', 'NaOH Conc(mol/L)']
+        return X_encoded[feature_cols]
+
 # ---------------- Streamlit 页面配置 ----------------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
@@ -74,7 +83,7 @@ feat_cols_cn = ['Type of Antibiotic',
 st.sidebar.header("Please enter parameters")
 inputs = {}
 
-# 分类变量下拉框，保证只选训练集已知类别
+# Antibiotic 类别自动获取
 encoder = pipe.named_steps['encoder']
 antibiotics_list = list(encoder.mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox(feat_cols_cn[0], antibiotics_list)
@@ -99,10 +108,10 @@ btn = st.sidebar.button("🔍 Predict degradation rate")
 # ---------- 主界面 ----------
 if btn:
     try:
-        # 构建 DataFrame，确保列顺序与训练特征一致
+        # 构建 DataFrame
         X_user = pd.DataFrame([inputs], columns=feat_cols)
 
-        # ✅ 使用 pipeline predict
+        # ✅ 使用 pipeline 的 predict，pipeline 内会自动 encode
         pred = pipe.predict(X_user)[0]
 
         st.markdown(f"### Predicted Degradation rate: `{pred:.3f}`")
@@ -121,10 +130,6 @@ if btn:
         st.plotly_chart(fig_gauge, use_container_width=True)
 
     except Exception as e:
-        st.error(
-            f"Prediction failed: {e}\n\n"
-            "⚠️ Make sure the inputs match the features used in training.\n"
-            "For Antibiotic, please select from the dropdown list."
-        )
+        st.error(f"Prediction failed: {e}\n\n⚠️ Please make sure the inputs match the features used in training.")
 else:
     st.info("Please enter the parameters in the left column and click the prediction button")
