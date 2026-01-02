@@ -49,7 +49,7 @@ inputs = {}
 # -------------------- 3. 分类特征（动态全部抗生素） --------------------
 for col in sidebar_order:
     if col in cat_cols:
-        options = sorted(encoder_mapping.keys())
+        options = sorted(encoder_mapping[col].keys())   # ← 取里面的 key
         inputs[col] = st.sidebar.selectbox(col, options)
 
 # -------------------- 4. 数值特征（保留 3 位小数） --------------------
