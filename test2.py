@@ -10,7 +10,6 @@ import plotly.graph_objects as go
 # =============================
 @st.cache_resource
 def load_pipeline():
-    # 直接用你上传的 xgb_pipeline_no_class.joblib
     bundle = joblib.load("xgb_pipeline_no_class.joblib")
     return bundle
 
@@ -29,8 +28,14 @@ st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
 # =============================
-# 3️⃣ 数值特征范围与默认值
+# 3️⃣ 左边栏显示顺序（可以自定义，不影响模型预测）
 # =============================
+sidebar_order = [
+    'Antibiotic', 'pH', 'Water content(%)', 'm(g)', 'T(°C)',
+    'V(L)', 't(min)', 'HCL Conc(mol/L)', 'NaOH Conc(mol/L)'
+]
+
+# 默认数值范围
 feature_ranges = {
     'pH': (2.0, 12.0, 6.08),
     'Water content(%)': (5.35, 98.1, 69.9),
@@ -47,51 +52,42 @@ inputs = {}
 # =============================
 # 4️⃣ 分类特征输入（selectbox）
 # =============================
-for cat in cat_cols:
-    options = list(encoder_mapping[cat].keys())
-    inputs[cat] = st.sidebar.selectbox(f"{cat}", options)
+for feat in sidebar_order:
+    if feat in cat_cols:
+        options = list(encoder_mapping[feat].keys())
+        inputs[feat] = st.sidebar.selectbox(f"{feat}", options)
+    elif feat in feature_cols:
+        min_val, max_val, default = feature_ranges.get(feat, (0.0, 100.0, 0.0))
+        inputs[feat] = st.sidebar.number_input(
+            label=feat,
+            min_value=float(min_val),
+            max_value=float(max_val),
+            value=float(default),
+            format="%.3f"
+        )
 
 # =============================
-# 5️⃣ 数值特征输入
-# =============================
-for feat in feature_cols:
-    if feat not in feature_ranges:
-        min_val, max_val, default = 0.0, 100.0, 0.0
-    else:
-        min_val, max_val, default = feature_ranges[feat]
-    inputs[feat] = st.sidebar.number_input(
-        label=feat,
-        min_value=float(min_val),
-        max_value=float(max_val),
-        value=float(default),
-        format="%.3f"
-    )
-
-# =============================
-# 6️⃣ Predict 按钮
+# 5️⃣ Predict 按钮
 # =============================
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # =============================
-# 7️⃣ 预测逻辑
+# 6️⃣ 预测逻辑
 # =============================
 if predict_btn:
-    # 构造用户输入 DataFrame
     X_user = pd.DataFrame([inputs])
 
     # 分类列映射
     for cat in cat_cols:
         X_user[cat] = X_user[cat].map(encoder_mapping[cat])
         if X_user[cat].isna().any():
-            # 若映射为空则用平均值填充
             X_user[cat] = X_user[cat].fillna(np.mean(list(encoder_mapping[cat].values())))
 
-    # ✅ 使用模型自身列顺序，严格匹配训练时顺序
-    final_cols = model.get_booster().feature_names
-    X_user = X_user[final_cols]
+    # ⚠️ 严格按模型训练列顺序（pipeline保存的列顺序）
+    X_user_final = pd.concat([X_user[feature_cols], X_user[cat_cols]], axis=1)
 
     # 预测
-    pred = model.predict(X_user)[0]
+    pred = model.predict(X_user_final)[0]
 
     # 显示结果
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
