@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import GroupKFold
 
+# ---------------- 自定义编码器 ----------------
 class TargetEncoderCV(BaseEstimator, TransformerMixin):
     def __init__(self, cat_cols, n_splits=5, random_state=42):
         self.cat_cols = cat_cols
@@ -38,8 +39,8 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
                 X_encoded[col] = X_encoded[col].map(self.mapping_[col]).fillna(self.global_mean_)
         return X_encoded
 
+# ---------------- Streamlit ----------------
 import streamlit as st
-import pandas as pd
 import plotly.graph_objects as go
 import joblib
 
@@ -89,8 +90,13 @@ btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # ---------- 主界面 ----------
 if btn:
-    X_user = pd.DataFrame([inputs])
-    pred = pipe.predict(X_user)[0]
+    # 构建 DataFrame
+    X_user = pd.DataFrame([inputs], columns=feat_cols)
+
+    # ✅ 关键修改：先用 encoder.transform 再 predict
+    X_user_encoded = pipe.named_steps['encoder'].transform(X_user)
+    pred = pipe.named_steps['xgb'].predict(X_user_encoded)[0]
+
     st.markdown(f"### Predicted Degradation rate: `{pred:.3f}`")
 
     # 仪表盘显示
