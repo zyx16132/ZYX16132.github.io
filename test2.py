@@ -19,6 +19,9 @@ encoder_mapping = bundle["encoder_mapping"]
 feature_cols = bundle["feature_cols"]  # 数值列
 cat_cols = bundle["cat_cols"]          # 分类列，如 ['Antibiotic']
 
+# ✅ 确保 feature_cols 不包含输出 Degradation
+feature_cols = [f for f in feature_cols if f != 'Degradation']
+
 # =============================
 # 2️⃣ 页面布局
 # =============================
@@ -48,19 +51,13 @@ inputs = {}
 # =============================
 for cat in cat_cols:
     options = list(encoder_mapping[cat].keys())
-    options.sort()
     inputs[cat] = st.sidebar.selectbox(f"{cat}", options)
 
 # =============================
 # 5️⃣ 数值特征输入
 # =============================
 for feat in feature_cols:
-    if feat not in feature_ranges:
-        st.warning(f"Feature '{feat}' not found in feature_ranges, using default 0.0")
-        min_val, max_val, default = 0.0, 100.0, 0.0
-    else:
-        min_val, max_val, default = feature_ranges[feat]
-
+    min_val, max_val, default = feature_ranges.get(feat, (0.0, 100.0, 0.0))
     inputs[feat] = st.sidebar.number_input(
         label=feat,
         min_value=float(min_val),
@@ -81,13 +78,12 @@ if predict_btn:
     # 构造用户输入 DataFrame
     X_user = pd.DataFrame([inputs])
 
-    # 分类列映射（安全处理未知类别）
+    # 分类列映射
     for cat in cat_cols:
-        mapping = encoder_mapping.get(cat, {})
-        X_user[cat] = X_user[cat].map(mapping)
-        # 如果输入的类别不在训练集中，用均值填充
+        X_user[cat] = X_user[cat].map(encoder_mapping[cat])
+        # 若映射为空则用平均值填充
         if X_user[cat].isna().any():
-            X_user[cat] = X_user[cat].fillna(np.mean(list(mapping.values())) if mapping else 0.0)
+            X_user[cat] = X_user[cat].fillna(np.mean(list(encoder_mapping[cat].values())))
 
     # 确保列顺序与训练一致
     final_cols = feature_cols + cat_cols
