@@ -51,7 +51,6 @@ st.markdown("---")
 # ---------- 加载 pipeline ----------
 @st.cache_resource
 def load_pipeline():
-    # 加载整个 pipeline（encoder + xgb）
     pipe = joblib.load("xgb_pipeline_groupCV.pkl")
     return pipe
 
@@ -75,7 +74,7 @@ feat_cols_cn = ['Type of Antibiotic',
 st.sidebar.header("Please enter parameters")
 inputs = {}
 
-# Antibiotic 类别自动获取
+# 分类变量下拉框，保证只选训练集已知类别
 encoder = pipe.named_steps['encoder']
 antibiotics_list = list(encoder.mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox(feat_cols_cn[0], antibiotics_list)
@@ -100,10 +99,10 @@ btn = st.sidebar.button("🔍 Predict degradation rate")
 # ---------- 主界面 ----------
 if btn:
     try:
-        # 构建 DataFrame
+        # 构建 DataFrame，确保列顺序与训练特征一致
         X_user = pd.DataFrame([inputs], columns=feat_cols)
 
-        # ✅ 使用 pipeline 的 predict，pipeline 内会自动 encode
+        # ✅ 使用 pipeline predict
         pred = pipe.predict(X_user)[0]
 
         st.markdown(f"### Predicted Degradation rate: `{pred:.3f}`")
@@ -122,6 +121,10 @@ if btn:
         st.plotly_chart(fig_gauge, use_container_width=True)
 
     except Exception as e:
-        st.error(f"Prediction failed: {e}\n\n⚠️ Please make sure the inputs match the features used in training.")
+        st.error(
+            f"Prediction failed: {e}\n\n"
+            "⚠️ Make sure the inputs match the features used in training.\n"
+            "For Antibiotic, please select from the dropdown list."
+        )
 else:
     st.info("Please enter the parameters in the left column and click the prediction button")
