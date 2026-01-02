@@ -1,30 +1,32 @@
-import joblib
-import pandas as pd
+# app.py
 import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
 import plotly.graph_objects as go
 
-# ---------------------------
-# 1️⃣ 加载 pipeline
-# ---------------------------
-bundle = joblib.load("xgb_pipeline_no_class.joblib")
-model = bundle["model"]
-encoder_mapping = bundle["encoder_mapping"]
-feature_cols = bundle["feature_cols"]
-cat_cols = bundle["cat_cols"]
+# =============================
+# 1️⃣ 加载模型和映射（字典版本）
+# =============================
+@st.cache_resource
+def load_pipeline():
+    bundle = joblib.load("xgb_pipeline_no_class.joblib")
+    return bundle["model"], bundle["encoder_mapping"], bundle["feature_cols"], bundle["cat_cols"]
 
-# ---------------------------
-# 2️⃣ 页面配置 & 输入
-# ---------------------------
+model, encoder_mapping, feature_cols, cat_cols = load_pipeline()
+
+# =============================
+# 2️⃣ 页面布局
+# =============================
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
+st.markdown("---")
+
 st.sidebar.header("Please enter parameters")
 
-inputs = {}
-
-# 分类特征选择
-inputs['Antibiotic'] = st.sidebar.selectbox("Type of Antibiotic", list(encoder_mapping.keys()))
-
-# 数值特征输入
+# =============================
+# 3️⃣ 特征范围和默认值
+# =============================
 feature_ranges = {
     'pH': (2.0, 12.0, 6.08),
     'Water content(%)': (5.35, 98.1, 69.9),
@@ -36,37 +38,77 @@ feature_ranges = {
     'NaOH Conc(mol/L)': (0.0, 0.6, 0.01)
 }
 
+inputs = {}
+
+# =============================
+# 4️⃣ 分类特征下拉框
+# =============================
+for cat in cat_cols:
+    if cat in encoder_mapping:
+        options = list(encoder_mapping[cat].keys())
+        inputs[cat] = st.sidebar.selectbox(f"Type of {cat}", options)
+
+# =============================
+# 5️⃣ 数值特征输入
+# =============================
 for feat in feature_cols:
     min_val, max_val, default = feature_ranges[feat]
     inputs[feat] = st.sidebar.number_input(
-        feat, min_value=float(min_val), max_value=float(max_val), value=float(default), format="%.3f"
+        feat,
+        min_value=float(min_val),
+        max_value=float(max_val),
+        value=float(default),
+        format="%.3f"
     )
 
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
-# ---------------------------
-# 3️⃣ 预测逻辑
-# ---------------------------
+# =============================
+# 6️⃣ 预测逻辑
+# =============================
 if predict_btn:
     X_user = pd.DataFrame([inputs])
-    # 手动 Target Encoding：用保存的 mapping
-    for col in cat_cols:
-        X_user[col] = X_user[col].map(encoder_mapping[col]).fillna(np.mean(list(encoder_mapping[col].values())))
-    # 确保列顺序一致
-    X_user = X_user[feature_cols + cat_cols]
-    
-    pred = model.predict(X_user)[0]
 
-    st.markdown(f"### ✅ Predicted degradation rate: **{pred:.2f}%**")
+    # ---------- 字典 Target Encoding ----------
+    for col in cat_cols:
+        if col in encoder_mapping:
+            X_user[col] = X_user[col].map(
+                encoder_mapping[col]
+            ).fillna(np.mean(list(encoder_mapping[col].values())))
+
+    # ---------- 严格列顺序 ----------
+    final_cols = feature_cols + cat_cols
+    X_user_enc = X_user[final_cols]
+
+    # ---------- 预测 ----------
+    pred = model.predict(X_user_enc)[0]
+
+    # =============================
+    # 7️⃣ 显示结果
+    # =============================
+    st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
 
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred,
         number={"suffix": "%"},
         title={"text": "Degradation rate"},
-        gauge={"axis": {"range": [0, 100]}, "bar": {"color": "darkgreen"}}
+        gauge={
+            "axis": {"range": [0, 100]},
+            "bar": {"color": "darkgreen"},
+            "steps": [
+                {"range": [0, 50], "color": "#f2f2f2"},
+                {"range": [50, 100], "color": "#c7e9c0"}
+            ],
+        }
     ))
     st.plotly_chart(fig, use_container_width=True)
 
 else:
     st.info("Please enter the parameters on the left and click Predict.")
+
+st.markdown("---")
+st.markdown(
+    "*This application uses the final trained XGBoost model and the saved target encoding mapping "
+    "to ensure full reproducibility.*"
+)
