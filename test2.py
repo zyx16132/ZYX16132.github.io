@@ -53,7 +53,7 @@ feature_cols = bundle["feature_cols"]
 # ======================================================
 # 2️⃣ 读取训练数据（仅用来获取范围，不做训练）
 # ======================================================
-df = pd.read_excel("文献数据.xlsx")  # 替换为你的本地训练数据路径
+df = pd.read_excel("data.xlsx")  # 替换为你的本地训练数据路径
 
 categorical_cols = ['Antibiotic']
 numeric_cols = [c for c in feature_cols if c not in categorical_cols]
