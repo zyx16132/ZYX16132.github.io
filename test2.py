@@ -4,12 +4,20 @@ import pandas as pd
 import plotly.graph_objects as go
 import joblib
 
-# ---------------- Streamlit 页面 ----------------
-st.set_page_config(page_title="Degradation rate prediction", layout="centered")
+# ======================================================
+# Streamlit 页面配置
+# ======================================================
+st.set_page_config(
+    page_title="Degradation rate prediction",
+    layout="centered"
+)
+
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
-# ---------- 加载 pipeline ----------
+# ======================================================
+# 加载 pipeline（encoder + XGB 已全部包含在内）
+# ======================================================
 @st.cache_resource
 def load_pipeline():
     return joblib.load("xgb_pipeline_groupCV.pkl")
@@ -17,11 +25,13 @@ def load_pipeline():
 try:
     pipe = load_pipeline()
 except Exception as e:
-    st.error(f"Pipeline loading failed: {e}")
+    st.error(f"❌ Pipeline loading failed:\n\n{e}")
     st.stop()
 
-# ---------- 特征名（⚠ 必须与训练时一致） ----------
-feat_cols = [
+# ======================================================
+# 特征列（⚠️ 必须与训练时完全一致）
+# ======================================================
+FEATURE_COLS = [
     'Antibiotic',
     'pH',
     'Water content(%)',
@@ -33,7 +43,7 @@ feat_cols = [
     'NaOH Conc(mol/L)'
 ]
 
-feat_cols_cn = [
+FEATURE_LABELS = [
     'Type of Antibiotic',
     'Initial environmental pH [2,12]',
     'Water content (%) [5.35,98.1]',
@@ -45,20 +55,23 @@ feat_cols_cn = [
     'NaOH concentration (mol/L) [0,0.6]'
 ]
 
-# ---------- 侧边栏输入 ----------
+# ======================================================
+# 侧边栏输入
+# ======================================================
 st.sidebar.header("Please enter parameters")
-
 inputs = {}
 
-# ✅ Antibiotic 直接从 pipeline encoder 中读取
+# ---------- Antibiotic 下拉框 ----------
+# ⚠️ encoder 已在 pipeline 内，这里只是为了给用户选项
 encoder = pipe.named_steps['encoder']
-antibiotics_list = sorted(encoder.mapping_['Antibiotic'].index.tolist())
+antibiotic_options = list(encoder.mapping_['Antibiotic'].index)
 
 inputs['Antibiotic'] = st.sidebar.selectbox(
-    feat_cols_cn[0],
-    antibiotics_list
+    FEATURE_LABELS[0],
+    antibiotic_options
 )
 
+# ---------- 数值输入 ----------
 default_values = {
     'pH': 6.08,
     'Water content(%)': 69.9,
@@ -70,44 +83,55 @@ default_values = {
     'NaOH Conc(mol/L)': 0.01
 }
 
-for col, col_cn in zip(feat_cols[1:], feat_cols_cn[1:]):
+for col, label in zip(FEATURE_COLS[1:], FEATURE_LABELS[1:]):
     inputs[col] = st.sidebar.number_input(
-        col_cn,
+        label,
         value=float(default_values[col]),
         format="%.3f"
     )
 
-btn = st.sidebar.button("🔍 Predict degradation rate")
+predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
-# ---------- 主界面 ----------
-if btn:
+# ======================================================
+# 主界面预测
+# ======================================================
+if predict_btn:
     try:
-        # ✅ 严格按训练顺序构建 DataFrame
-        X_user = pd.DataFrame([[inputs[c] for c in feat_cols]], columns=feat_cols)
+        # 构建严格匹配训练特征顺序的 DataFrame
+        X_user = pd.DataFrame([inputs], columns=FEATURE_COLS)
 
-        # 预测
+        # ⚠️ 直接用 pipeline.predict
+        # encoder + XGB 会自动完成
         pred = pipe.predict(X_user)[0]
 
-        st.markdown(f"### Predicted Degradation rate: `{pred:.3f}`")
+        st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}`")
 
-        # 仪表盘
+        # ---------- 仪表盘 ----------
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=pred,
-            title={'text': "Degradation rate"},
+            title={'text': "Degradation rate", 'font': {'size': 22}},
             gauge={
                 'axis': {'range': [0, 1]},
                 'bar': {'color': "darkgreen"},
                 'steps': [
                     {'range': [0, 0.5], 'color': "lightgray"},
                     {'range': [0.5, 1], 'color': "lightgreen"}
-                ]
+                ],
+                'threshold': {
+                    'line': {'color': "red", 'width': 4},
+                    'thickness': 0.75,
+                    'value': pred
+                }
             }
         ))
 
         st.plotly_chart(fig, use_container_width=True)
 
     except Exception as e:
-        st.error(f"Prediction failed: {e}")
+        st.error(
+            f"❌ Prediction failed:\n\n{e}\n\n"
+            "⚠️ Please make sure inputs match the training features."
+        )
 else:
-    st.info("Please enter the parameters in the left column and click the prediction button")
+    st.info("Please enter the parameters on the left and click the prediction button.")
