@@ -20,7 +20,7 @@ model   = bundle["model"]
 encoder_mapping = bundle["encoder_mapping"]
 feature_cols    = bundle["feature_cols"]
 cat_cols        = bundle["cat_cols"]
-train_columns   = bundle["train_columns"]   # 训练时的列顺序
+train_columns   = bundle["train_columns"]
 
 # -------------------- 2. 页面布局 --------------------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
@@ -50,7 +50,7 @@ inputs = {}
 # -------------------- 4. 分类特征（动态全部抗生素） --------------------
 for col in sidebar_order:
     if col in cat_cols:
-        options = sorted(encoder_mapping[col].keys())  # 与训练字典 100% 同源
+        options = sorted(encoder_mapping[col].keys())
         inputs[col] = st.sidebar.selectbox(col, options)
 
 # -------------------- 5. 数值特征 --------------------
@@ -77,11 +77,11 @@ if predict_btn:
     for col, val in inputs.items():
         X_user.loc[0, col] = val
 
-    # 3. 分类映射（带保险栓，可删）
+    # 3. 分类映射（带保险栓）
     for cat in cat_cols:
         X_user[cat] = X_user[cat].map(lambda x: safe_encode(x, encoder_mapping[cat]))
 
-    # 4. 统一数值型
+    # 4. 转数值
     X_user = X_user.astype(float)
 
     # 5. 按训练顺序切片
@@ -91,24 +91,22 @@ if predict_btn:
     pred = model.predict(X_user_final.values)[0]
 
     # 7. 结果与仪表盘
-pred_pct = pred * 100  # ← 关键：0-1 小数 → 百分号
-st.markdown(f"### ✅ Predicted Degradation rate: **{pred_pct:.2f}%**")
-
-fig = go.Figure(go.Indicator(
-    mode="gauge+number",
-    value=pred_pct,  # ← 传百分比
-    number={"suffix": "%"},
-    title={"text": "Degradation rate"},
-    gauge={
-        "axis": {"range": [0, 100]},
-        "bar": {"color": "darkgreen"},
-        "steps": [
-            {"range": [0, 50], "color": "#f2f2f2"},
-            {"range": [50, 100], "color": "#c7e9c0"}
-        ],
-    }
-))
-st.plotly_chart(fig, use_container_width=True)
+    st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=pred,
+        number={"suffix": "%"},
+        title={"text": "Degradation rate"},
+        gauge={
+            "axis": {"range": [0, 100]},
+            "bar": {"color": "darkgreen"},
+            "steps": [
+                {"range": [0, 50], "color": "#f2f2f2"},
+                {"range": [50, 100], "color": "#c7e9c0"}
+            ],
+        }
+    ))
+    st.plotly_chart(fig, use_container_width=True)
 
 else:
     st.info("Please enter the parameters on the left and click Predict.")
