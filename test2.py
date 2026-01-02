@@ -1,12 +1,11 @@
 # app.py
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
 import joblib
 from sklearn.base import BaseEstimator, TransformerMixin
 
-# ---------------- 自定义编码器 ----------------
+# ---------------- 自定义 TargetEncoderCV ----------------
 class TargetEncoderCV(BaseEstimator, TransformerMixin):
     def __init__(self, cat_cols, n_splits=5, random_state=42):
         self.cat_cols = cat_cols
@@ -31,7 +30,8 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
             if col not in X_encoded.columns:
                 continue
             if y is not None and groups is not None:
-                X_encoded[col] = np.nan
+                # 分组编码
+                X_encoded[col] = pd.NA
                 from sklearn.model_selection import GroupKFold
                 gkf = GroupKFold(n_splits=self.n_splits)
                 X_temp, y_temp, groups_temp = X.copy(), y.copy(), groups.copy()
@@ -43,34 +43,40 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
                 X_encoded[col] = X_encoded[col].map(self.mapping_[col]).fillna(self.global_mean_)
         return X_encoded
 
-# ---------------- Streamlit ----------------
+# ---------------- Streamlit 页面配置 ----------------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
-# ---------------- 加载 pipeline ----------------
+# ---------- 加载 pipeline ----------
 @st.cache_resource
 def load_pipeline():
-    # 注意这里必须先定义 TargetEncoderCV
     pipe = joblib.load("xgb_pipeline_groupCV.pkl")
     return pipe
 
 pipe = load_pipeline()
 
-# ---------------- 特征名 ----------------
+# ---------- 特征名 ----------
 feat_cols = ['Antibiotic', 'pH', 'Water content(%)', 'm(g)', 'T(°C)',
              'V(L)', 't(min)', 'HCL Conc(mol/L)', 'NaOH Conc(mol/L)']
 
-feat_cols_cn = ['Type of Antibiotic', 'Initial environmental pH [2,12]', 'Water content (%) [5.35,98.1]',
-                'Quality (g) [1,500]', 'Reaction temperature (°C) [0,340]', 'Reactor volume (L) [0.05,1]',
-                'Reaction time (min) [0,480]', 'HCL concentration (mol/L) [0,0.6]', 'NaOH concentration (mol/L) [0,0.6]']
+feat_cols_cn = ['Type of Antibiotic',
+                'Initial environmental pH [2,12]',
+                'Water content (%) [5.35,98.1]',
+                'Quality (g) [1,500]',
+                'Reaction temperature (°C) [0,340]',
+                'Reactor volume (L) [0.05,1]',
+                'Reaction time (min) [0,480]',
+                'HCL concentration (mol/L) [0,0.6]',
+                'NaOH concentration (mol/L) [0,0.6]']
 
-# ---------------- 侧边栏输入 ----------------
+# ---------- 侧边栏输入 ----------
 st.sidebar.header("Please enter parameters")
 inputs = {}
 
 # 自动获取 Antibiotic 类别
-antibiotics_list = list(pipe.named_steps['encoder'].mapping_['Antibiotic'].index)
+encoder = pipe.named_steps['encoder']
+antibiotics_list = list(encoder.mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox(feat_cols_cn[0], antibiotics_list)
 
 # 数值默认值
@@ -90,13 +96,15 @@ for col, col_cn in zip(feat_cols[1:], feat_cols_cn[1:]):
 
 btn = st.sidebar.button("🔍 Predict degradation rate")
 
-# ---------------- 主界面 ----------------
+# ---------- 主界面 ----------
 if btn:
-    X_user = pd.DataFrame([inputs], columns=feat_cols)
-
     try:
-        # pipeline 自动处理编码和预测
+        # 构建 DataFrame
+        X_user = pd.DataFrame([inputs], columns=feat_cols)
+
+        # 预测
         pred = pipe.predict(X_user)[0]
+
         st.markdown(f"### Predicted Degradation rate: `{pred:.3f}`")
 
         # 仪表盘显示
@@ -112,8 +120,7 @@ if btn:
                                  'thickness': 0.75, 'value': pred}}))
         st.plotly_chart(fig_gauge, use_container_width=True)
 
-    except ValueError as e:
+    except Exception as e:
         st.error(f"Prediction failed: {e}\n\n⚠️ Please make sure the inputs match the features used in training.")
-
 else:
     st.info("Please enter the parameters in the left column and click the prediction button")
