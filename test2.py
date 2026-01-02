@@ -30,7 +30,7 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
             if col not in X_encoded.columns:
                 continue
             if y is not None and groups is not None:
-                # 分组编码
+                # 训练集 CV 安全编码
                 X_encoded[col] = pd.NA
                 from sklearn.model_selection import GroupKFold
                 gkf = GroupKFold(n_splits=self.n_splits)
@@ -40,32 +40,31 @@ class TargetEncoderCV(BaseEstimator, TransformerMixin):
                     X_encoded.iloc[val_idx, X_encoded.columns.get_loc(col)] = X_temp.iloc[val_idx][col].map(mapping)
                 X_encoded[col] = X_encoded[col].fillna(y.mean())
             else:
+                # 测试集 / 新样本
                 X_encoded[col] = X_encoded[col].map(self.mapping_[col]).fillna(self.global_mean_)
         return X_encoded
-
-# ---------------- 自定义 PipelineTargetEncoder ----------------
-class PipelineTargetEncoder(TargetEncoderCV):
-    def transform(self, X, y=None, groups=None):
-        X_encoded = super().transform(X, y=y, groups=groups)
-        # 保证输出只包含训练时的特征列
-        feature_cols = ['Antibiotic', 'pH', 'Water content(%)', 'm(g)',
-                        'T(°C)', 'V(L)', 't(min)', 'HCL Conc(mol/L)', 'NaOH Conc(mol/L)']
-        return X_encoded[feature_cols]
 
 # ---------------- Streamlit 页面配置 ----------------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 
-# ---------- 加载 pipeline ----------
+# ---------------- 加载 pipeline ----------------
 @st.cache_resource
 def load_pipeline():
+    # 确保 PipelineTargetEncoder 在此文件中定义，否则 joblib 会报错
+    class PipelineTargetEncoder(TargetEncoderCV):
+        def transform(self, X, y=None, groups=None):
+            X_encoded = super().transform(X, y=y, groups=groups)
+            feature_cols = ['Antibiotic', 'pH', 'Water content(%)', 'm(g)',
+                            'T(°C)', 'V(L)', 't(min)', 'HCL Conc(mol/L)', 'NaOH Conc(mol/L)']
+            return X_encoded[feature_cols]
     pipe = joblib.load("xgb_pipeline_groupCV.pkl")
     return pipe
 
 pipe = load_pipeline()
 
-# ---------- 特征名 ----------
+# ---------------- 特征名 ----------------
 feat_cols = ['Antibiotic', 'pH', 'Water content(%)', 'm(g)', 'T(°C)',
              'V(L)', 't(min)', 'HCL Conc(mol/L)', 'NaOH Conc(mol/L)']
 
@@ -79,16 +78,15 @@ feat_cols_cn = ['Type of Antibiotic',
                 'HCL concentration (mol/L) [0,0.6]',
                 'NaOH concentration (mol/L) [0,0.6]']
 
-# ---------- 侧边栏输入 ----------
+# ---------------- 侧边栏输入 ----------------
 st.sidebar.header("Please enter parameters")
 inputs = {}
 
-# Antibiotic 类别自动获取
 encoder = pipe.named_steps['encoder']
 antibiotics_list = list(encoder.mapping_['Antibiotic'].index)
 inputs['Antibiotic'] = st.sidebar.selectbox(feat_cols_cn[0], antibiotics_list)
 
-# 数值默认值
+# 默认数值
 default_values = {
     'pH': 6.08,
     'Water content(%)': 69.9,
@@ -105,13 +103,13 @@ for col, col_cn in zip(feat_cols[1:], feat_cols_cn[1:]):
 
 btn = st.sidebar.button("🔍 Predict degradation rate")
 
-# ---------- 主界面 ----------
+# ---------------- 主界面 ----------------
 if btn:
     try:
         # 构建 DataFrame
         X_user = pd.DataFrame([inputs], columns=feat_cols)
 
-        # ✅ 使用 pipeline 的 predict，pipeline 内会自动 encode
+        # 使用 pipeline predict
         pred = pipe.predict(X_user)[0]
 
         st.markdown(f"### Predicted Degradation rate: `{pred:.3f}`")
