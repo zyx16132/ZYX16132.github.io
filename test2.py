@@ -8,7 +8,9 @@ import plotly.graph_objects as go
 # -------------------- 0. 保险栓：统一大小写/空格（可选） --------------------
 def safe_encode(val, mapping):
     val = str(val).upper().strip()
-    return mapping.get(val, np.mean(list(mapping.values())))
+    # 先转 list，避免 NumPy 对 dict_values 报错
+    default = np.mean(list(mapping.values()))
+    return mapping.get(val, default)
 
 # -------------------- 1. 加载 3 个独立文件（无 bundle） --------------------
 @st.cache_resource
