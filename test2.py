@@ -46,81 +46,87 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import plotly.graph_objects as go
 
-# -------------------------
-# 1️⃣ 加载模型
-# -------------------------
+# ======================================================
+# 加载模型、编码器和特征列
+# ======================================================
 bundle = joblib.load("xgb_pipeline.joblib")
 model = bundle["model"]
 encoder = bundle["encoder"]
 feature_cols = bundle["feature_cols"]
 
-# -------------------------
-# 2️⃣ 页面布局
-# -------------------------
-st.set_page_config(page_title="Degradation rate prediction", layout="centered")
+# ======================================================
+# 读取原始数据用于计算 min/max/mean
+# ======================================================
+df = pd.read_excel("data.xlsx")
+
+# 数值特征
+num_features = feature_cols.copy()
+categorical_features = ['Antibiotic']
+
+# ======================================================
+# Streamlit 页面设置
+# ======================================================
+st.set_page_config(
+    page_title="Degradation rate prediction",
+    layout="centered"
+)
+
 st.title("🧪 Degradation rate prediction system")
-st.markdown("---")
 
+# ======================================================
+# Sidebar 输入
+# ======================================================
 st.sidebar.header("Please enter parameters")
-
-# -------------------------
-# 3️⃣ 特征范围 & 默认值
-# -------------------------
-feature_ranges = {
-    'pH': (2, 12, 6.08),
-    'Water content(%)': (5.35, 98.1, 69.9),
-    'm(g)': (1, 500, 79.36),
-    'T(°C)': (0, 340, 117.8),
-    'V(L)': (0.05, 1, 0.23),
-    't(min)': (0, 480, 64.59),
-    'HCL Conc(mol/L)': (0, 0.6, 0.06),
-    'NaOH Conc(mol/L)': (0, 0.6, 0.01)
-}
 
 inputs = {}
 
-# 分类特征
-ANTIBIOTIC_LIST = list(encoder.mapping_['Antibiotic'].index)
-inputs['Antibiotic'] = st.sidebar.selectbox("Type of Antibiotic", ANTIBIOTIC_LIST)
+for feat in num_features:
+    min_val = df[feat].min()
+    max_val = df[feat].max()
+    default = df[feat].mean()
+    inputs[feat] = st.sidebar.number_input(
+        f"{feat} ({min_val:.3f}, {max_val:.3f})",
+        value=float(default),
+        min_value=float(min_val),
+        max_value=float(max_val),
+        format="%.3f"
+    )
 
-# 数值特征
-for feat, (min_val, max_val, default) in feature_ranges.items():
-   inputs[feat] = st.sidebar.number_input(
-    f"{feat} ({min_val}, {max_val})",
-    value=float(default),
-    min_value=min_val,
-    max_value=max_val,
-    format="%.3f"
+# 分类特征选择
+for feat in categorical_features:
+    unique_vals = df[feat].unique().tolist()
+    default = unique_vals[0]
+    inputs[feat] = st.sidebar.selectbox(
+        f"Type of {feat}",
+        options=unique_vals,
+        index=0
+    )
+
+# ======================================================
+# 准备单样本预测
+# ======================================================
+X_user = pd.DataFrame([inputs])
+
+# 只对数值+Antibiotic列进行编码
+X_user_enc = encoder.transform(X_user)
+
+# 预测
+pred = model.predict(X_user_enc)[0]
+
+# ======================================================
+# 显示结果（居中 + 仪表盘）
+# ======================================================
+st.subheader("Predicted Degradation Rate (%)")
+st.metric(label="Degradation Rate", value=f"{pred:.2f}")
+
+# 可选仪表盘显示
+st.write("### Gauge-style visualization")
+st.markdown(
+    f"""
+    <div style="display:flex; justify-content:center;">
+        <progress value="{pred}" max="100" style="width:60%; height:30px;"></progress>
+    </div>
+    """,
+    unsafe_allow_html=True
 )
-
-predict_btn = st.sidebar.button("🔍 Predict degradation rate")
-
-# -------------------------
-# 4️⃣ 预测逻辑
-# -------------------------
-if predict_btn:
-    X_user = pd.DataFrame([inputs])
-    # 按训练特征顺序
-    X_user = X_user[feature_cols + ['Antibiotic']]
-    # 编码
-    X_user_enc = encoder.transform(X_user)
-    # 预测
-    pred = model.predict(X_user_enc)[0]
-
-    st.markdown(f"### ✅ Predicted Degradation rate: `{pred:.3f}`")
-
-    # 仪表盘
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=pred,
-        title={'text': "Degradation rate"},
-        gauge={'axis': {'range': [0, 100]}}
-    ))
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("Please enter parameters on the left and click Predict.")
-
-st.markdown("---")
-st.markdown("*This system uses a unified machine learning pipeline to ensure consistent preprocessing and prediction.*")
