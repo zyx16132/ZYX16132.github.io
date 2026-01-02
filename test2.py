@@ -83,9 +83,9 @@ def train_and_embed():
     search = RandomizedSearchCV(
         estimator=xgb_base,
         param_distributions=param_dist,
-        n_iter=30,
+        n_iter=10,
         scoring='r2',
-        cv=5,
+        cv=3,
         random_state=42,
         n_jobs=-1,
         verbose=1
