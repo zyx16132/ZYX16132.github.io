@@ -63,39 +63,40 @@ if predict_btn:
     for col, bit in zip(antibiotic_onehot_cols, onehot_str):
         X.loc[0, col] = float(bit)
 
-    X.loc[0, "pH"]                    = inputs["pH"]
-    X.loc[0, "Water content (%)"]     = inputs["Water content(%)"]
-    X.loc[0, "m (g)"]                 = inputs["m(g)"]
-    X.loc[0, "T (°C)"]                = inputs["T(°C)"]
-    X.loc[0, "V (L)"]                 = inputs["V(L)"]
-    X.loc[0, "t (min)"]               = inputs["t(min)"]
-    X.loc[0, "Acid Conc (mol/L)"]     = inputs["HCL Conc(mol/L)"]
-    X.loc[0, "Alkali Conc (mol/L)"]   = inputs["NaOH Conc(mol/L)"]
+    X.loc[0, "pH"]                  = inputs["pH"]
+    X.loc[0, "Water content (%)"]   = inputs["Water content(%)"]
+    X.loc[0, "m (g)"]               = inputs["m(g)"]
+    X.loc[0, "T (°C)"]              = inputs["T(°C)"]
+    X.loc[0, "V (L)"]               = inputs["V(L)"]
+    X.loc[0, "t (min)"]             = inputs["t(min)"]
+    X.loc[0, "Acid Conc (mol/L)"]   = inputs["HCL Conc(mol/L)"]
+    X.loc[0, "Alkali Conc (mol/L)"] = inputs["NaOH Conc(mol/L)"]
 
-    pred = model.predict(X.values)[0] 
-pred_percent = pred * 100      
+    pred = model.predict(X.values)[0]
+    pred_percent = pred * 100
 
     st.markdown(
-    f"### ✅ Predicted Degradation rate: **{pred_percent:.2f}%**"
-)
+        f"### ✅ Predicted Degradation rate: **{pred_percent:.2f}%**"
+    )
 
     fig = go.Figure(go.Indicator(
-    mode="gauge+number",
-    value=pred_percent,
-    number={"suffix": "%"},
-    title={"text": "Degradation rate"},
-    gauge={
-        "axis": {"range": [0, 100]},
-        "bar": {"color": "darkgreen"},
-    }
-))
+        mode="gauge+number",
+        value=pred_percent,
+        number={"suffix": "%"},
+        title={"text": "Degradation rate"},
+        gauge={
+            "axis": {"range": [0, 100]},
+            "bar": {"color": "darkgreen"},
+        }
+    ))
     st.plotly_chart(fig, use_container_width=True)
 
-st.caption(
-    "*This model is applicable only to the experimental systems covered by the present database. "
-    "For predictions in other independent systems, retraining the model using data from the corresponding system "
-    "is recommended to achieve optimal performance.*"
-)
+    st.caption(
+        "*This model is applicable only to the experimental systems covered by the present database. "
+        "For predictions in other independent systems, retraining the model using data from the corresponding system "
+        "is recommended to achieve optimal performance.*"
+    )
 
 else:
     st.info("Please enter the parameters on the left and click Predict.")
+
