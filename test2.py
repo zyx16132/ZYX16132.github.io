@@ -51,8 +51,8 @@ inputs["m(g)"]                = num_input("m(g)", 1.0, 500.0, 79.36)
 inputs["T(°C)"]               = num_input("T(°C)", 0.0, 340.0, 117.8)
 inputs["V(L)"]                = num_input("V(L)", 0.05, 1.0, 0.23)
 inputs["t(min)"]              = num_input("t(min)", 0.0, 480.0, 64.59)
-inputs["HCL Conc(mol/L)"]     = num_input("HCL Conc(mol/L)", 0.0, 0.6, 0.06)
-inputs["NaOH Conc(mol/L)"]    = num_input("NaOH Conc(mol/L)", 0.0, 0.6, 0.01)
+inputs["Acid Conc (mol/L)"] = num_input("Acid Conc (mol/L)", 0.0, 0.6, 0.06)
+inputs["Alkali Conc (mol/L)"] = num_input("Alkali Conc (mol/L)", 0.0, 0.6, 0.01)
 
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
