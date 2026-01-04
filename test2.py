@@ -1,23 +1,24 @@
-# test2.py（最终修正版）
+# app.py（one-hot 安全版，布局保持不变）
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import json
 import plotly.graph_objects as go
 
-# -------------------- 1. 加载 3 个独立文件（无 bundle） --------------------
+# -------------------- 1. 加载 3 个独立文件 --------------------
 @st.cache_resource
 def load_pipeline():
-    model   = joblib.load("final_model_only.joblib")
-    mapping = joblib.load("encoder_mapping.json")
-    columns = joblib.load("train_columns.json")
-    return model, mapping, columns
+    model = joblib.load("xgb_best.pkl")
+    with open("antibiotic_onehot_map.json", "r", encoding="utf-8") as f:
+        onehot_map = json.load(f)
+    with open("feature_columns.json", "r", encoding="utf-8") as f:
+        feature_columns = json.load(f)
+    return model, onehot_map, feature_columns
 
-model, encoder_mapping, train_columns = load_pipeline()
-feature_cols = [c for c in train_columns if c != 'Antibiotic']
-cat_cols     = ['Antibiotic']
+model, antibiotic_map, feature_columns = load_pipeline()
 
-# -------------------- 2. 页面布局（同原文件） --------------------
+# -------------------- 2. 页面布局（保持不变） --------------------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
@@ -41,15 +42,15 @@ feature_ranges = {
 
 inputs = {}
 
-# -------------------- 3. 分类特征（动态全部抗生素） --------------------
-for col in sidebar_order:
-    if col in cat_cols:
-        options = sorted(encoder_mapping[col].keys())
-        inputs[col] = st.sidebar.selectbox(col, options)
+# -------------------- 3. Antibiotic（动态来自 one-hot map） --------------------
+inputs["Antibiotic"] = st.sidebar.selectbox(
+    "Antibiotic",
+    options=sorted(antibiotic_map.keys())
+)
 
-# -------------------- 4. 数值特征（保留 3 位小数） --------------------
+# -------------------- 4. 数值特征（保持不变） --------------------
 for col in sidebar_order:
-    if col in feature_cols:
+    if col != "Antibiotic":
         min_val, max_val, default = feature_ranges[col]
         inputs[col] = st.sidebar.number_input(
             label=col,
@@ -63,20 +64,32 @@ for col in sidebar_order:
 # -------------------- 5. Predict 按钮 --------------------
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
-# -------------------- 6. 预测逻辑（对齐 train_columns） --------------------
+# -------------------- 6. 预测逻辑（严格对齐训练特征） --------------------
 if predict_btn:
-    X_user = pd.DataFrame(columns=train_columns)
-    for col, val in inputs.items():
-        X_user.loc[0, col] = val
-    # 直接 map，永无除零
-    for cat in cat_cols:
-        mapping = encoder_mapping[cat]
-        X_user[cat] = X_user[cat].map(mapping).fillna(np.mean(list(mapping.values())))
-    X_user = X_user.astype(float)
-    X_user_final = X_user[train_columns]
-    pred = model.predict(X_user_final.values)[0]
+    # 1️⃣ 构建一行 DataFrame
+    X_user = pd.DataFrame(index=[0])
+
+    # 2️⃣ Antibiotic → one-hot（字符串）
+    X_user["Antibiotic_encoded"] = antibiotic_map[inputs["Antibiotic"]]
+
+    # 3️⃣ 数值特征
+    X_user["pH"] = inputs["pH"]
+    X_user["Water content (%)"] = inputs["Water content(%)"]
+    X_user["m (g)"] = inputs["m(g)"]
+    X_user["T (°C)"] = inputs["T(°C)"]
+    X_user["V (L)"] = inputs["V(L)"]
+    X_user["t (min)"] = inputs["t(min)"]
+    X_user["Acid Conc (mol/L)"] = inputs["HCL Conc(mol/L)"]
+    X_user["Alkali Conc (mol/L)"] = inputs["NaOH Conc(mol/L)"]
+
+    # 4️⃣ 保证列顺序完全一致
+    X_user_final = X_user[feature_columns]
+
+    # 5️⃣ 预测
+    pred = model.predict(X_user_final)[0]
 
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
+
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred,
@@ -99,5 +112,5 @@ else:
 st.markdown("---")
 st.markdown(
     "*This application uses the final trained XGBoost model "
-    "and the same target encoding as the training pipeline.*"
+    "and the exact one-hot encoding scheme from the training pipeline.*"
 )
