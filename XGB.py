@@ -1,182 +1,135 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from xgboost import XGBRegressor
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.model_selection import RandomizedSearchCV, GroupKFold
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+from sklearn.base import clone
+from joblib import dump
 
-plt.rcParams['font.size'] = 12
-sns.set_style("whitegrid")
+RANDOM_STATE = 42
+np.random.seed(RANDOM_STATE)
 
-class TargetEncoderCV(BaseEstimator, TransformerMixin):
-    def __init__(self, cat_cols, n_splits=5, random_state=42):
-        self.cat_cols = cat_cols
-        self.n_splits = n_splits
-        self.random_state = random_state
-        self.global_mean_ = None
-        self.mapping_ = dict()
+df = pd.read_excel('data.xlsx')
 
-    def fit(self, X, y, groups=None):
-        self.global_mean_ = y.mean()
-        self.mapping_ = dict()
-        for col in self.cat_cols:
-            if col in X.columns:
-                self.mapping_[col] = y.groupby(X[col]).mean()
-            else:
-                self.mapping_[col] = pd.Series(dtype=float)
-        return self
+train_indices = []
+test_indices = []
 
-    def transform(self, X, y=None, groups=None):
-        X_encoded = X.copy()
-        for col in self.cat_cols:
-            if col not in X_encoded.columns:
-                continue
-            if y is not None and groups is not None:
+for group_id, g_df in df.groupby(df.iloc[:, 0]):
+    idx = g_df.index.to_numpy()
+    np.random.shuffle(idx)
 
-                X_encoded[col] = np.nan
-                gkf = GroupKFold(n_splits=self.n_splits)
-                X_temp, y_temp, groups_temp = X.copy(), y.copy(), groups.copy()
-                for train_idx, val_idx in gkf.split(X_temp, y_temp, groups_temp):
-                    mapping = y_temp.iloc[train_idx].groupby(X_temp.iloc[train_idx][col]).mean()
-                    X_encoded.iloc[val_idx, X_encoded.columns.get_loc(col)] = X_temp.iloc[val_idx][col].map(mapping)
-                X_encoded[col] = X_encoded[col].fillna(y.mean())
-            else:
+    n_train = int(len(idx) * 0.8)
+    train_indices.extend(idx[:n_train])
+    test_indices.extend(idx[n_train:])
 
-                X_encoded[col] = X_encoded[col].map(self.mapping_[col]).fillna(self.global_mean_)
-        return X_encoded
+df_train = df.loc[train_indices].reset_index(drop=True)
+df_test  = df.loc[test_indices].reset_index(drop=True)
 
+print('========== 数据划分 ==========')
+print('训练集样本数:', df_train.shape[0])
+print('测试集样本数:', df_test.shape[0])
+print('Group 总数:', df.iloc[:, 0].nunique())
+print('训练集 Group 数:', df_train.iloc[:, 0].nunique())
+print('测试集 Group 数:', df_test.iloc[:, 0].nunique())
 
-df = pd.read_excel(r'data.xlsx')
+X_train = df_train.iloc[:, 2:11]
+y_train = df_train.iloc[:, 11]
 
-feature_cols = df.columns[1:10]
-categorical_cols = ['Antibiotic']
-
-X = df[feature_cols].copy()
-X['Antibiotic'] = df['Antibiotic']
-y = df['Degradation']
-groups = df['Group']
-
-test_groups = {4, 5, 8, 12, 13, 15, 16, 17}
-all_groups = set(df['Group'].unique())
-train_groups = all_groups - test_groups
-
-train_mask = groups.isin(train_groups)
-test_mask = groups.isin(test_groups)
-
-X_train, X_test = X.loc[train_mask], X.loc[test_mask]
-y_train, y_test = y.loc[train_mask], y.loc[test_mask]
-groups_train = groups.loc[train_mask]
-
-print("训练集样本数:", X_train.shape[0])
-print("测试集样本数:", X_test.shape[0])
-print("训练集文献数:", len(train_groups))
-print("测试集文献数:", len(test_groups))
-print("测试集 Group:", sorted(test_groups))
-
-encoder = TargetEncoderCV(cat_cols=categorical_cols, n_splits=5, random_state=42)
-X_train_encoded = encoder.fit_transform(X_train, y_train, groups=groups_train)
-X_test_encoded = encoder.transform(X_test)
+X_test  = df_test.iloc[:, 2:11]
+y_test  = df_test.iloc[:, 11]
 
 param_dist = {
-    'n_estimators': [100, 150, 200, 300, 400, 500],
-    'max_depth': [6, 7, 8, 9],
-    'learning_rate': [0.15, 0.2],
-    'subsample': [0.5, 0.6],
-    'colsample_bytree': [0.4, 0.5],
-    'reg_alpha': [1.0, 5.0],
-    'reg_lambda': [10, 30, 50]
+    'n_estimators': [300,400,500,600,700,800],
+    'max_depth': [6,7,8,9,10,11],
+    'learning_rate': [0.01,0.02,0.03,0.04,0.05],
+    'subsample': [0.1,0.2,0.3,0.4,0.5],
+    'colsample_bytree': [0.6,0.7,0.8,0.9],
+    'reg_lambda': [2,3,4],
+    'reg_alpha': [0.0,0.1]
 }
 
-xgb_base = XGBRegressor(random_state=42, objective="reg:squarederror")
-group_kfold = GroupKFold(n_splits=5)
+xgb_base = XGBRegressor(
+    objective='reg:squarederror',
+    random_state=42,
+    tree_method='hist'
+)
 
 search = RandomizedSearchCV(
     estimator=xgb_base,
     param_distributions=param_dist,
-    n_iter=30,
+    n_iter=40,
     scoring='r2',
-    cv=group_kfold,
-    random_state=42,
+    cv=30,
     n_jobs=-1,
-    verbose=1
+    verbose=1,
+    random_state=42
 )
 
-search.fit(X_train_encoded, y_train, groups=groups_train)
+search.fit(X_train, y_train)
 best_xgb = search.best_estimator_
 
-print("\n最佳参数组合:")
-print(search.best_params_)
+print('\n========== 最佳参数组合 ==========')
+for k, v in search.best_params_.items():
+    print(f'{k}: {v}')
 
-mae_list, rmse_list, r2_list = [], [], []
-y_train_cv_pred = np.zeros(len(y_train))
+def calc_metrics(y_true, y_pred):
+    return (
+        r2_score(y_true, y_pred),
+        np.sqrt(mean_squared_error(y_true, y_pred)),
+        mean_absolute_error(y_true, y_pred)
+    )
 
-print("\n训练集 5折 Group CV 每折指标:")
-for i, (train_idx, val_idx) in enumerate(group_kfold.split(X_train_encoded, y_train, groups_train), 1):
-    X_tr, X_val = X_train_encoded.iloc[train_idx], X_train_encoded.iloc[val_idx]
-    y_tr, y_val = y_train.iloc[train_idx], y_train.iloc[val_idx]
+r2_tr, rmse_tr, mae_tr = calc_metrics(y_train, best_xgb.predict(X_train))
+r2_te, rmse_te, mae_te = calc_metrics(y_test,  best_xgb.predict(X_test))
 
-    model = XGBRegressor(**best_xgb.get_params())
+print('\n========== 模型性能汇总 ==========')
+print(f'Train R²   : {r2_tr:.4f}')
+print(f'Train RMSE : {rmse_tr:.4f}')
+print(f'Train MAE  : {mae_tr:.4f}')
+print('---------------------------------')
+print(f'Test  R²   : {r2_te:.4f}')
+print(f'Test  RMSE : {rmse_te:.4f}')
+print(f'Test  MAE  : {mae_te:.4f}')
+
+dump(best_xgb, 'xgb_best.pkl')
+print('\n模型已保存为 xgb_best.pkl')
+
+print('\n========== 5 折 Group 分层交叉验证 ==========')
+
+K = 5
+df_cv = df.copy()
+df_cv['fold'] = -1
+
+for gid, g_df in df_cv.groupby(df_cv.iloc[:, 0]):
+    idx = g_df.index.to_numpy()
+    np.random.shuffle(idx)
+    folds = np.array_split(idx, K)
+    for k in range(K):
+        df_cv.loc[folds[k], 'fold'] = k
+
+cv_metrics = []
+
+for k in range(K):
+    df_train_cv = df_cv[df_cv['fold'] != k]
+    df_test_cv  = df_cv[df_cv['fold'] == k]
+
+    X_tr = df_train_cv.iloc[:, 2:11]
+    y_tr = df_train_cv.iloc[:, 11]
+    X_te = df_test_cv.iloc[:, 2:11]
+    y_te = df_test_cv.iloc[:, 11]
+
+    model = clone(best_xgb)
     model.fit(X_tr, y_tr)
-    y_pred = model.predict(X_val)
+    y_pred = model.predict(X_te)
 
-    y_train_cv_pred[val_idx] = y_pred
+    r2, rmse, mae = calc_metrics(y_te, y_pred)
+    cv_metrics.append([r2, rmse, mae])
 
-    r2 = r2_score(y_val, y_pred)
-    rmse = np.sqrt(mean_squared_error(y_val, y_pred))
-    mae = mean_absolute_error(y_val, y_pred)
+    print(f'Fold {k+1}: R²={r2:.4f}, RMSE={rmse:.4f}, MAE={mae:.4f}')
 
-    mae_list.append(mae)
-    rmse_list.append(rmse)
-    r2_list.append(r2)
+cv_metrics = np.array(cv_metrics)
 
-    print(f" Fold {i}: R² = {r2:.4f}, RMSE = {rmse:.4f}, MAE = {mae:.4f}")
-
-r2_cv_mean = np.mean(r2_list)
-r2_cv_std = np.std(r2_list)
-rmse_cv_mean = np.mean(rmse_list)
-rmse_cv_std = np.std(rmse_list)
-mae_cv_mean = np.mean(mae_list)
-mae_cv_std = np.std(mae_list)
-
-print("\n训练集 5折 Group CV 平均指标:")
-print(f"R²   : {r2_cv_mean:.4f} ± {r2_cv_std:.4f}")
-print(f"RMSE : {rmse_cv_mean:.4f} ± {rmse_cv_std:.4f}")
-print(f"MAE  : {mae_cv_mean:.4f} ± {mae_cv_std:.4f}")
-
-pred_test = best_xgb.predict(X_test_encoded)
-mae_test = mean_absolute_error(y_test, pred_test)
-rmse_test = np.sqrt(mean_squared_error(y_test, pred_test))
-r2_test = r2_score(y_test, pred_test)
-
-print(f"\n测试集 MAE : {mae_test:.4f}")
-print(f"测试集 RMSE: {rmse_test:.4f}")
-print(f"测试集 R²  : {r2_test:.4f}")
-
-idx = np.random.choice(X_test_encoded.index)
-single_x = X_test_encoded.loc[[idx]]
-single_true = y_test.loc[idx]
-single_pred = best_xgb.predict(single_x)[0]
-print(f"\n选中测试样本 index = {idx}")
-print("真实降解率:", single_true)
-print("模型预测值:", single_pred)
-
-pred_train_full = best_xgb.predict(X_train_encoded)
-mae_train = mean_absolute_error(y_train, pred_train_full)
-rmse_train = np.sqrt(mean_squared_error(y_train, pred_train_full))
-r2_train = r2_score(y_train, pred_train_full)
-
-print("\n======== 汇总 ========")
-print(f"MAE_training (full train) : {mae_train:.4f}")
-print(f"RMSE_training (full train): {rmse_train:.4f}")
-print(f"R2_training (full train)  : {r2_train:.4f}")
-print("----------------------")
-print(f"MAE_testing  : {mae_test:.4f}")
-print(f"RMSE_testing : {rmse_test:.4f}")
-print(f"R2_testing   : {r2_test:.4f}")
-
-from joblib import dump
-
-dump(best_xgb, "xgb_best.pkl")
-print("\n最佳模型已保存为 xgb_best.pkl")
+print('\n========== 5 折交叉验证统计 ==========')
+print(f'R²   : {cv_metrics[:,0].mean():.4f} ± {cv_metrics[:,0].std():.4f}')
+print(f'RMSE : {cv_metrics[:,1].mean():.4f} ± {cv_metrics[:,1].std():.4f}')
+print(f'MAE  : {cv_metrics[:,2].mean():.4f} ± {cv_metrics[:,2].std():.4f}')
