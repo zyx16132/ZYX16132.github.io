@@ -51,8 +51,8 @@ inputs["m(g)"]                = num_input("m(g)", 1.0, 500.0, 79.36)
 inputs["T(°C)"]               = num_input("T(°C)", 0.0, 340.0, 117.8)
 inputs["V(L)"]                = num_input("V(L)", 0.05, 1.0, 0.23)
 inputs["t(min)"]              = num_input("t(min)", 0.0, 480.0, 64.59)
-inputs["Acid Conc (mol/L)"] = num_input("Acid Conc (mol/L)", 0.0, 0.6, 0.06)
-inputs["Alkali Conc (mol/L)"] = num_input("Alkali Conc (mol/L)", 0.0, 0.6, 0.01)
+inputs["HCL Conc (mol/L)"] = num_input("HCL Conc (mol/L)", 0.0, 0.6, 0.06)
+inputs["NaOH Conc (mol/L)"] = num_input("NaOH Conc (mol/L)", 0.0, 0.6, 0.01)
 
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
@@ -69,8 +69,8 @@ if predict_btn:
     X.loc[0, "T (°C)"]              = inputs["T(°C)"]
     X.loc[0, "V (L)"]               = inputs["V(L)"]
     X.loc[0, "t (min)"]             = inputs["t(min)"]
-    X.loc[0, "Acid Conc (mol/L)"]   = inputs["Acid Conc(mol/L)"]
-    X.loc[0, "Alkali Conc (mol/L)"] = inputs["Alkali Conc(mol/L)"]
+    X.loc[0, "HCL Conc (mol/L)"]   = inputs["HCL Conc(mol/L)"]
+    X.loc[0, "NaOH Conc (mol/L)"] = inputs["NaOH Conc(mol/L)"]
 
     pred = model.predict(X.values)[0]
     pred_percent = pred * 100
