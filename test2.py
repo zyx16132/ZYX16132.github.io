@@ -56,38 +56,29 @@ inputs["NaOH Conc (mol/L)"] = num_input("NaOH Conc (mol/L)", 0.0, 0.6, 0.01)
 
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
-# =====================================================
-# 3. 预测逻辑（关键修复在这里）
-# =====================================================
 if predict_btn:
-    # ① 创建 DataFrame，列顺序 = 训练顺序
     X = pd.DataFrame(0.0, index=[0], columns=feature_columns)
 
-    # ② 抗生素 one-hot
     onehot_str = antibiotic_map[inputs["Antibiotic"]]
     for col, bit in zip(antibiotic_onehot_cols, onehot_str):
         X.loc[0, col] = float(bit)
 
-    # ③ 数值特征（列名 = 训练列名）
     X.loc[0, "pH"]                  = inputs["pH"]
     X.loc[0, "Water content (%)"]   = inputs["Water content(%)"]
     X.loc[0, "m (g)"]               = inputs["m(g)"]
     X.loc[0, "T (°C)"]              = inputs["T(°C)"]
     X.loc[0, "V (L)"]               = inputs["V(L)"]
     X.loc[0, "t (min)"]             = inputs["t(min)"]
-    X.loc[0, "Acid Conc (mol/L)"]   = inputs["HCL Conc(mol/L)"]
-    X.loc[0, "Alkali Conc (mol/L)"] = inputs["NaOH Conc(mol/L)"]
+    X.loc[0, "Acid Conc (mol/L)"]   = inputs["HCL Conc (mol/L)"]
+    X.loc[0, "Alkali Conc (mol/L)"] = inputs["NaOH Conc (mol/L)"]
 
-    # ④ 预测（模型输出是 0–1）
     pred = model.predict(X.values)[0]
     pred_percent = pred * 100
 
-    # ⑤ 显示数值结果
     st.markdown(
         f"### ✅ Predicted Degradation rate: **{pred_percent:.2f}%**"
     )
 
-    # ⑥ 仪表盘
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred_percent,
@@ -100,13 +91,8 @@ if predict_btn:
     ))
     st.plotly_chart(fig, use_container_width=True)
 
-    # ⑦ 小字体说明（你刚才要加的）
     st.caption(
         "*This model is applicable only to the experimental systems covered by the present database. "
         "For predictions in other independent systems, retraining the model using data from the corresponding system "
         "is recommended to achieve optimal performance.*"
     )
-
-else:
-    st.info("Please enter the parameters on the left and click Predict.")
-
