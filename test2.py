@@ -69,8 +69,8 @@ if predict_btn:
     X.loc[0, "T (°C)"]              = inputs["T(°C)"]
     X.loc[0, "V (L)"]               = inputs["V(L)"]
     X.loc[0, "t (min)"]             = inputs["t(min)"]
-    X.loc[0, "Acid Conc (mol/L)"]   = inputs["HCL Conc(mol/L)"]
-    X.loc[0, "Alkali Conc (mol/L)"] = inputs["NaOH Conc(mol/L)"]
+    X.loc[0, "Acid Conc (mol/L)"]   = inputs["Acid Conc(mol/L)"]
+    X.loc[0, "Alkali Conc (mol/L)"] = inputs["Alkali Conc(mol/L)"]
 
     pred = model.predict(X.values)[0]
     pred_percent = pred * 100
