@@ -1,4 +1,4 @@
-# app.py（one-hot 安全版，布局保持不变）
+# app.py（最终可部署版本）
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -6,19 +6,22 @@ import joblib
 import json
 import plotly.graph_objects as go
 
-# -------------------- 1. 加载 3 个独立文件 --------------------
+# -------------------- 1. 加载模型和文件 --------------------
 @st.cache_resource
 def load_pipeline():
     model = joblib.load("xgb_best.pkl")
     with open("antibiotic_onehot_map.json", "r", encoding="utf-8") as f:
-        onehot_map = json.load(f)
+        antibiotic_map = json.load(f)
     with open("feature_columns.json", "r", encoding="utf-8") as f:
         feature_columns = json.load(f)
-    return model, onehot_map, feature_columns
+    return model, antibiotic_map, feature_columns
 
 model, antibiotic_map, feature_columns = load_pipeline()
 
-# -------------------- 2. 页面布局（保持不变） --------------------
+# 自动识别抗生素 one-hot 列
+antibiotic_onehot_cols = [c for c in feature_columns if c.startswith("Antibiotic_")]
+
+# -------------------- 2. 页面布局 --------------------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
@@ -42,13 +45,13 @@ feature_ranges = {
 
 inputs = {}
 
-# -------------------- 3. Antibiotic（动态来自 one-hot map） --------------------
+# -------------------- 3. 分类特征（Antibiotic） --------------------
 inputs["Antibiotic"] = st.sidebar.selectbox(
     "Antibiotic",
     options=sorted(antibiotic_map.keys())
 )
 
-# -------------------- 4. 数值特征（保持不变） --------------------
+# -------------------- 4. 数值特征 --------------------
 for col in sidebar_order:
     if col != "Antibiotic":
         min_val, max_val, default = feature_ranges[col]
@@ -64,15 +67,16 @@ for col in sidebar_order:
 # -------------------- 5. Predict 按钮 --------------------
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
-# -------------------- 6. 预测逻辑（严格对齐训练特征） --------------------
+# -------------------- 6. 预测逻辑 --------------------
 if predict_btn:
-    # 1️⃣ 构建一行 DataFrame
     X_user = pd.DataFrame(index=[0])
 
-    # 2️⃣ Antibiotic → one-hot（字符串）
-    X_user["Antibiotic_encoded"] = antibiotic_map[inputs["Antibiotic"]]
+    # Antibiotic one-hot 展开
+    onehot_str = antibiotic_map[inputs["Antibiotic"]]  # "1000000000" 类型
+    for col, val in zip(antibiotic_onehot_cols, onehot_str):
+        X_user[col] = int(val)
 
-    # 3️⃣ 数值特征
+    # 数值特征
     X_user["pH"] = inputs["pH"]
     X_user["Water content (%)"] = inputs["Water content(%)"]
     X_user["m (g)"] = inputs["m(g)"]
@@ -82,12 +86,13 @@ if predict_btn:
     X_user["Acid Conc (mol/L)"] = inputs["HCL Conc(mol/L)"]
     X_user["Alkali Conc (mol/L)"] = inputs["NaOH Conc(mol/L)"]
 
-    # 4️⃣ 保证列顺序完全一致
+    # 列顺序对齐训练
     X_user_final = X_user[feature_columns]
 
-    # 5️⃣ 预测
+    # 预测
     pred = model.predict(X_user_final)[0]
 
+    # 显示结果
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
 
     fig = go.Figure(go.Indicator(
