@@ -88,23 +88,26 @@ if predict_btn:
     # =================================================
     # ✅ 关键：用 numpy array 预测（不做特征名校验）
     # =================================================
-    pred = model.predict(X.values)[0]
+    pred = model.predict(X.values)[0]   # 模型原始输出（0–1）
+pred_percent = pred * 100           # 仅用于显示
 
     # =================================================
     # 显示结果
     # =================================================
-    st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
+    st.markdown(
+    f"### ✅ Predicted Degradation rate: **{pred_percent:.2f}%**"
+)
 
     fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=pred,
-        number={"suffix": "%"},
-        title={"text": "Degradation rate"},
-        gauge={
-            "axis": {"range": [0, 100]},
-            "bar": {"color": "darkgreen"},
-        }
-    ))
+    mode="gauge+number",
+    value=pred_percent,
+    number={"suffix": "%"},
+    title={"text": "Degradation rate"},
+    gauge={
+        "axis": {"range": [0, 100]},
+        "bar": {"color": "darkgreen"},
+    }
+))
     st.plotly_chart(fig, use_container_width=True)
 
 else:
