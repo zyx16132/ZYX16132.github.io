@@ -1,11 +1,11 @@
 [
   "Antibiotic_encoded",
   "pH",
-  "Water content (%)",
-  "m (g)",
-  "T (\u00b0C)",
-  "V (L)",
-  "t (min)",
-  "Acid Conc (mol/L)",
-  "Alkali Conc (mol/L)"
+  "Water content(%)",
+  "m(g)",
+  "T(\u00b0C)",
+  "V(L)",
+  "t(min)",
+  "Acid Conc(mol/L)",
+  "Alkali Conc(mol/L)"
 ]
