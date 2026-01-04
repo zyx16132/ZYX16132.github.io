@@ -1,4 +1,3 @@
-# app.py —— 最终稳定版（强烈推荐）
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -6,9 +5,6 @@ import joblib
 import json
 import plotly.graph_objects as go
 
-# =====================================================
-# 1. 加载模型 & 配置文件
-# =====================================================
 @st.cache_resource
 def load_pipeline():
     model = joblib.load("xgb_best.pkl")
@@ -24,12 +20,8 @@ def load_pipeline():
 
 model, antibiotic_map, feature_columns = load_pipeline()
 
-# 抗生素 one-hot 列（顺序=训练顺序）
 antibiotic_onehot_cols = [c for c in feature_columns if c.startswith("Antibiotic_")]
 
-# =====================================================
-# 2. 页面布局（完全保持不变）
-# =====================================================
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
@@ -43,8 +35,9 @@ inputs["Antibiotic"] = st.sidebar.selectbox(
 )
 
 def num_input(label, vmin, vmax, default):
+    label_with_range = f"{label} ({vmin}–{vmax})"
     return st.sidebar.number_input(
-        label,
+        label=label_with_range,
         min_value=float(vmin),
         max_value=float(vmax),
         value=float(default),
@@ -63,19 +56,13 @@ inputs["NaOH Conc(mol/L)"]    = num_input("NaOH Conc(mol/L)", 0.0, 0.6, 0.01)
 
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
-# =====================================================
-# 3. 预测逻辑（关键修复在这里）
-# =====================================================
 if predict_btn:
-    # ① 创建 DataFrame，列顺序 = 训练顺序
     X = pd.DataFrame(0.0, index=[0], columns=feature_columns)
 
-    # ② 抗生素 one-hot
     onehot_str = antibiotic_map[inputs["Antibiotic"]]
     for col, bit in zip(antibiotic_onehot_cols, onehot_str):
         X.loc[0, col] = float(bit)
 
-    # ③ 数值特征（列名 = 训练列名）
     X.loc[0, "pH"]                    = inputs["pH"]
     X.loc[0, "Water content (%)"]     = inputs["Water content(%)"]
     X.loc[0, "m (g)"]                 = inputs["m(g)"]
@@ -85,15 +72,9 @@ if predict_btn:
     X.loc[0, "Acid Conc (mol/L)"]     = inputs["HCL Conc(mol/L)"]
     X.loc[0, "Alkali Conc (mol/L)"]   = inputs["NaOH Conc(mol/L)"]
 
-    # =================================================
-    # ✅ 关键：用 numpy array 预测（不做特征名校验）
-    # =================================================
-    pred = model.predict(X.values)[0]   # 模型原始输出（0–1）
-pred_percent = pred * 100           # 仅用于显示
+    pred = model.predict(X.values)[0] 
+pred_percent = pred * 100      
 
-    # =================================================
-    # 显示结果
-    # =================================================
     st.markdown(
     f"### ✅ Predicted Degradation rate: **{pred_percent:.2f}%**"
 )
@@ -109,6 +90,12 @@ pred_percent = pred * 100           # 仅用于显示
     }
 ))
     st.plotly_chart(fig, use_container_width=True)
+
+st.caption(
+    "*This model is applicable only to the experimental systems covered by the present database. "
+    "For predictions in other independent systems, retraining the model using data from the corresponding system "
+    "is recommended to achieve optimal performance.*"
+)
 
 else:
     st.info("Please enter the parameters on the left and click Predict.")
