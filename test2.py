@@ -9,11 +9,17 @@ import plotly.graph_objects as go
 # -------------------- 1. 加载模型和文件 --------------------
 @st.cache_resource
 def load_pipeline():
+    # 加载训练好的 XGBoost 模型
     model = joblib.load("xgb_best.pkl")
+    
+    # 加载抗生素 one-hot 映射
     with open("antibiotic_onehot_map.json", "r", encoding="utf-8") as f:
         antibiotic_map = json.load(f)
+    
+    # 加载训练时特征列顺序
     with open("feature_columns.json", "r", encoding="utf-8") as f:
         feature_columns = json.load(f)
+    
     return model, antibiotic_map, feature_columns
 
 model, antibiotic_map, feature_columns = load_pipeline()
@@ -27,11 +33,13 @@ st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
 st.sidebar.header("Please enter parameters")
 
+# 网页侧边栏参数顺序
 sidebar_order = [
     "Antibiotic", "pH", "Water content(%)", "m(g)", "T(°C)",
     "V(L)", "t(min)", "HCL Conc(mol/L)", "NaOH Conc(mol/L)"
 ]
 
+# 数值特征范围及默认值
 feature_ranges = {
     'pH': (2.0, 12.0, 6.08),
     'Water content(%)': (5.35, 98.1, 69.9),
@@ -69,32 +77,37 @@ predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 # -------------------- 6. 预测逻辑 --------------------
 if predict_btn:
-    X_user = pd.DataFrame(index=[0])
-
-    # Antibiotic one-hot 展开
-    onehot_str = antibiotic_map[inputs["Antibiotic"]]  # "1000000000" 类型
+    # 1️⃣ 创建空 DataFrame，列名完全按照训练时 feature_columns
+    X_user_final = pd.DataFrame(columns=feature_columns, index=[0])
+    
+    # 2️⃣ 填充抗生素 one-hot 列
+    onehot_str = antibiotic_map[inputs["Antibiotic"]]  # 字符串 "1000000000"
     for col, val in zip(antibiotic_onehot_cols, onehot_str):
-        X_user[col] = int(val)
-
-    # 数值特征
-    X_user["pH"] = inputs["pH"]
-    X_user["Water content (%)"] = inputs["Water content(%)"]
-    X_user["m (g)"] = inputs["m(g)"]
-    X_user["T (°C)"] = inputs["T(°C)"]
-    X_user["V (L)"] = inputs["V(L)"]
-    X_user["t (min)"] = inputs["t(min)"]
-    X_user["Acid Conc (mol/L)"] = inputs["HCL Conc(mol/L)"]
-    X_user["Alkali Conc (mol/L)"] = inputs["NaOH Conc(mol/L)"]
-
-    # 列顺序对齐训练
-    X_user_final = X_user[feature_columns]
-
-    # 预测
+        X_user_final.loc[0, col] = int(val)
+    
+    # 3️⃣ 填充数值特征
+    num_map = {
+        "pH": "pH",
+        "Water content(%)": "Water content(%)",
+        "m(g)": "m (g)",
+        "T(°C)": "T (°C)",
+        "V(L)": "V (L)",
+        "t(min)": "t(min)",
+        "HCL Conc(mol/L)": "Acid Conc (mol/L)",
+        "NaOH Conc(mol/L)": "Alkali Conc (mol/L)"
+    }
+    for k, v in num_map.items():
+        X_user_final.loc[0, v] = inputs[k]
+    
+    # 4️⃣ 数据类型全部转换成 float
+    X_user_final = X_user_final.astype(float)
+    
+    # 5️⃣ 预测
     pred = model.predict(X_user_final)[0]
-
-    # 显示结果
+    
+    # 6️⃣ 显示结果
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred:.2f}%**")
-
+    
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pred,
