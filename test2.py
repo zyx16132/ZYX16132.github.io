@@ -9,26 +9,22 @@ import plotly.graph_objects as go
 # -------------------------------
 @st.cache_resource
 def load_pipeline():
-    # 加载模型
     model = joblib.load("xgb_best.pkl")
 
-    # 加载抗生素缩写到编码的映射
+    # 加载抗生素 one-hot 字符串映射
     with open("antibiotic_onehot_map.json", "r", encoding="utf-8") as f:
         antibiotic_map = json.load(f)
-        # 确保映射为整数
-        antibiotic_map = {k: int(v) for k, v in antibiotic_map.items()}
+        # antibiotic_map 形如 {"ERY": "1000000000", "SM": "0100000000", ...}
 
-    # 加载特征列
     with open("feature_columns.json", "r", encoding="utf-8") as f:
         feature_columns = json.load(f)
 
-    # 如果训练特征里没有 Antibiotic_encoded，则添加
-    if "Antibiotic_encoded" not in feature_columns:
-        feature_columns.append("Antibiotic_encoded")
+    # 找出所有抗生素 one-hot 列
+    antibiotic_onehot_cols = [c for c in feature_columns if c.startswith("Antibiotic_")]
 
-    return model, antibiotic_map, feature_columns
+    return model, antibiotic_map, feature_columns, antibiotic_onehot_cols
 
-model, antibiotic_map, feature_columns = load_pipeline()
+model, antibiotic_map, feature_columns, antibiotic_onehot_cols = load_pipeline()
 
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
@@ -40,7 +36,7 @@ st.sidebar.header("Please enter parameters")
 # -------------------------------
 inputs = {}
 
-# 显示易懂抗生素缩写
+# 显示缩写
 inputs["Antibiotic"] = st.sidebar.selectbox(
     "Antibiotic",
     options=sorted(antibiotic_map.keys())
@@ -72,13 +68,15 @@ predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 # Prediction
 # -------------------------------
 if predict_btn:
-    # 创建特征 DataFrame
+    # 创建输入矩阵
     X = pd.DataFrame(0.0, index=[0], columns=feature_columns)
 
-    # 把用户选择的抗生素缩写映射到数字编码列
-    X.loc[0, "Antibiotic_encoded"] = antibiotic_map[inputs["Antibiotic"]]
+    # 填充抗生素 one-hot 列
+    onehot_str = antibiotic_map[inputs["Antibiotic"]]  # e.g., "1000000000"
+    for col, bit in zip(antibiotic_onehot_cols, onehot_str):
+        X.loc[0, col] = float(bit)  # 转成 0/1
 
-    # 填入其余数值特征
+    # 填充其他数值特征
     X.loc[0, "pH"]                  = inputs["pH"]
     X.loc[0, "Water content (%)"]   = inputs["Water content(%)"]
     X.loc[0, "m (g)"]               = inputs["m(g)"]
