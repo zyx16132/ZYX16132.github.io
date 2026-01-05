@@ -9,13 +9,22 @@ import plotly.graph_objects as go
 # -------------------------------
 @st.cache_resource
 def load_pipeline():
+    # 加载模型
     model = joblib.load("xgb_best.pkl")
 
+    # 加载抗生素缩写到编码的映射
     with open("antibiotic_onehot_map.json", "r", encoding="utf-8") as f:
         antibiotic_map = json.load(f)
+        # 确保映射为整数
+        antibiotic_map = {k: int(v) for k, v in antibiotic_map.items()}
 
+    # 加载特征列
     with open("feature_columns.json", "r", encoding="utf-8") as f:
         feature_columns = json.load(f)
+
+    # 如果训练特征里没有 Antibiotic_encoded，则添加
+    if "Antibiotic_encoded" not in feature_columns:
+        feature_columns.append("Antibiotic_encoded")
 
     return model, antibiotic_map, feature_columns
 
@@ -31,7 +40,7 @@ st.sidebar.header("Please enter parameters")
 # -------------------------------
 inputs = {}
 
-# 显示易懂抗生素名称/缩写
+# 显示易懂抗生素缩写
 inputs["Antibiotic"] = st.sidebar.selectbox(
     "Antibiotic",
     options=sorted(antibiotic_map.keys())
@@ -66,7 +75,7 @@ if predict_btn:
     # 创建特征 DataFrame
     X = pd.DataFrame(0.0, index=[0], columns=feature_columns)
 
-    # 将选择的抗生素映射为数字编码
+    # 把用户选择的抗生素缩写映射到数字编码列
     X.loc[0, "Antibiotic_encoded"] = antibiotic_map[inputs["Antibiotic"]]
 
     # 填入其余数值特征
