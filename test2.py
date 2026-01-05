@@ -17,6 +17,7 @@ def load_pipeline():
 
     return model, antibiotic_map, feature_columns
 
+
 model, antibiotic_map, feature_columns = load_pipeline()
 
 antibiotic_onehot_cols = [c for c in feature_columns if c.startswith("Antibiotic_")]
