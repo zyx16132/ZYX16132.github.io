@@ -74,19 +74,10 @@ if predict_btn:
     # 创建输入 DataFrame
     X = pd.DataFrame(0.0, index=[0], columns=feature_columns)
 
-    # -------------------------------
-    # 抗生素独热编码处理
-    # -------------------------------
-    onehot_str = antibiotic_map[inputs["Antibiotic"]]  # "1000000000"
-    antibiotic_cols = [c for c in feature_columns if c.startswith("Antibiotic_")]
+    # 抗生素列直接填入训练时对应值
+    X.loc[0, "Antibiotic_encoded"] = antibiotic_map[inputs["Antibiotic"]]  # 字符串形式或 float
 
-    # 将字符串转为数值列表，然后填入对应列
-    for col, bit in zip(antibiotic_cols, onehot_str):
-        X.loc[0, col] = int(bit)
-
-    # -------------------------------
     # 其他数值特征
-    # -------------------------------
     X.loc[0, "pH"]                  = inputs["pH"]
     X.loc[0, "Water content(%)"]    = inputs["Water content(%)"]
     X.loc[0, "m(g)"]                = inputs["m(g)"]
@@ -96,11 +87,10 @@ if predict_btn:
     X.loc[0, "Acid Conc (mol/L)"]   = inputs["HCL Conc (mol/L)"]
     X.loc[0, "Alkali Conc (mol/L)"] = inputs["NaOH Conc (mol/L)"]
 
-    # -------------------------------
     # 模型预测
-    # -------------------------------
     pred = model.predict(X.values)[0]
     pred_percent = pred * 100
+
 
     # 显示结果
     st.markdown(f"### ✅ Predicted Degradation rate: **{pred_percent:.2f}%**")
