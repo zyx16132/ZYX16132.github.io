@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import joblib
 import json
 import plotly.graph_objects as go
@@ -12,11 +11,11 @@ import plotly.graph_objects as go
 def load_pipeline():
     model = joblib.load("xgb_best.pkl")
 
-    # 读取抗生素英文缩写 -> Excel 第三列原始值映射
+    # 读取抗生素英文缩写 -> encoded 映射
     with open("antibiotic_onehot_map.json", "r", encoding="utf-8") as f:
         antibiotic_map = json.load(f)
 
-    # 读取特征列顺序
+    # 读取训练时特征列顺序
     with open("feature_columns.json", "r", encoding="utf-8") as f:
         feature_columns = json.load(f)
 
@@ -54,7 +53,7 @@ def num_input(label, vmin, vmax, default):
     )
 
 # ===============================
-# 其他参数输入
+# 其他数值参数输入
 # ===============================
 inputs["pH"]                  = num_input("pH", 2.0, 12.0, 6.08)
 inputs["Water content(%)"]    = num_input("Water content(%)", 5.35, 98.1, 69.9)
@@ -65,27 +64,30 @@ inputs["t(min)"]              = num_input("t(min)", 0.0, 480.0, 64.59)
 inputs["HCL Conc (mol/L)"]    = num_input("HCL Conc (mol/L)", 0.0, 0.6, 0.06)
 inputs["NaOH Conc (mol/L)"]   = num_input("NaOH Conc (mol/L)", 0.0, 0.6, 0.01)
 
+# ===============================
+# 预测按钮
+# ===============================
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 if predict_btn:
-    # 创建输入 DataFrame
-    X = pd.DataFrame(0.0, index=[0], columns=feature_columns)
+    # 创建输入 DataFrame，列顺序严格按照训练特征列
+    X = pd.DataFrame("", index=[0], columns=feature_columns)
 
-    # **这里直接把字符串或数值形式赋值给模型的抗生素列**
+    # 将抗生素 encoded 字符串直接放入模型输入列
     antibiotic_col = [c for c in feature_columns if c.startswith("Antibiotic_")][0]
-    X.loc[0, antibiotic_col] = float(antibiotic_map[inputs["Antibiotic"]])  # 转成 float
+    X.loc[0, antibiotic_col] = antibiotic_map[inputs["Antibiotic"]]  # 保持字符串形式
 
-
+    # 其他数值特征（列名必须和训练一致）
     X.loc[0, "pH"]                  = inputs["pH"]
-    X.loc[0, "Water content (%)"]   = inputs["Water content(%)"]
-    X.loc[0, "m (g)"]               = inputs["m(g)"]
-    X.loc[0, "T (°C)"]              = inputs["T(°C)"]
-    X.loc[0, "V (L)"]               = inputs["V(L)"]
-    X.loc[0, "t (min)"]             = inputs["t(min)"]
+    X.loc[0, "Water content(%)"]    = inputs["Water content(%)"]
+    X.loc[0, "m(g)"]                = inputs["m(g)"]
+    X.loc[0, "T(°C)"]               = inputs["T(°C)"]
+    X.loc[0, "V(L)"]                = inputs["V(L)"]
+    X.loc[0, "t(min)"]              = inputs["t(min)"]
     X.loc[0, "Acid Conc (mol/L)"]   = inputs["HCL Conc (mol/L)"]
     X.loc[0, "Alkali Conc (mol/L)"] = inputs["NaOH Conc (mol/L)"]
 
-
+    # 模型预测
     pred = model.predict(X.values)[0]
     pred_percent = pred * 100
 
