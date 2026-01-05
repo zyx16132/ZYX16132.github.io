@@ -3,6 +3,7 @@ import pandas as pd
 import joblib
 import json
 import plotly.graph_objects as go
+import numpy as np
 
 # ===============================
 # 缓存加载模型和映射文件
@@ -11,7 +12,7 @@ import plotly.graph_objects as go
 def load_pipeline():
     model = joblib.load("xgb_best.pkl")
 
-    # 读取抗生素英文缩写 -> encoded 映射
+    # 读取抗生素英文缩写 -> 独热编码字符串映射
     with open("antibiotic_onehot_map.json", "r", encoding="utf-8") as f:
         antibiotic_map = json.load(f)
 
@@ -70,14 +71,22 @@ inputs["NaOH Conc (mol/L)"]   = num_input("NaOH Conc (mol/L)", 0.0, 0.6, 0.01)
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 if predict_btn:
-    # 创建输入 DataFrame，列顺序严格按照训练特征列
-    X = pd.DataFrame("", index=[0], columns=feature_columns)
+    # 创建输入 DataFrame
+    X = pd.DataFrame(0.0, index=[0], columns=feature_columns)
 
-    # 将抗生素 encoded 字符串直接放入模型输入列
-    antibiotic_col = [c for c in feature_columns if c.startswith("Antibiotic_")][0]
-    X.loc[0, antibiotic_col] = antibiotic_map[inputs["Antibiotic"]]  # 保持字符串形式
+    # -------------------------------
+    # 抗生素独热编码处理
+    # -------------------------------
+    onehot_str = antibiotic_map[inputs["Antibiotic"]]  # "1000000000"
+    antibiotic_cols = [c for c in feature_columns if c.startswith("Antibiotic_")]
 
-    # 其他数值特征（列名必须和训练一致）
+    # 将字符串转为数值列表，然后填入对应列
+    for col, bit in zip(antibiotic_cols, onehot_str):
+        X.loc[0, col] = int(bit)
+
+    # -------------------------------
+    # 其他数值特征
+    # -------------------------------
     X.loc[0, "pH"]                  = inputs["pH"]
     X.loc[0, "Water content(%)"]    = inputs["Water content(%)"]
     X.loc[0, "m(g)"]                = inputs["m(g)"]
@@ -87,7 +96,9 @@ if predict_btn:
     X.loc[0, "Acid Conc (mol/L)"]   = inputs["HCL Conc (mol/L)"]
     X.loc[0, "Alkali Conc (mol/L)"] = inputs["NaOH Conc (mol/L)"]
 
+    # -------------------------------
     # 模型预测
+    # -------------------------------
     pred = model.predict(X.values)[0]
     pred_percent = pred * 100
 
