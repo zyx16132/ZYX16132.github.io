@@ -11,21 +11,33 @@ import plotly.graph_objects as go
 def load_pipeline():
     model = joblib.load("xgb_best.pkl")
 
-    # 加载抗生素 one-hot 字符串映射
+    # 读取抗生素 one-hot 映射（缩写 -> "1000000000"）
     with open("antibiotic_onehot_map.json", "r", encoding="utf-8") as f:
-        antibiotic_map = json.load(f)
-        # antibiotic_map 形如 {"ERY": "1000000000", "SM": "0100000000", ...}
+        raw_map = json.load(f)
 
+    # 兼容是否包了一层 "encoded"
+    if "encoded" in raw_map:
+        antibiotic_map = raw_map["encoded"]
+    else:
+        antibiotic_map = raw_map
+
+    # 读取训练时使用的特征列
     with open("feature_columns.json", "r", encoding="utf-8") as f:
         feature_columns = json.load(f)
 
-    # 找出所有抗生素 one-hot 列
-    antibiotic_onehot_cols = [c for c in feature_columns if c.startswith("Antibiotic_")]
+    return model, antibiotic_map, feature_columns
 
-    return model, antibiotic_map, feature_columns, antibiotic_onehot_cols
 
-model, antibiotic_map, feature_columns, antibiotic_onehot_cols = load_pipeline()
+model, antibiotic_map, feature_columns = load_pipeline()
 
+# 抗生素 one-hot 列（顺序必须与训练一致）
+antibiotic_onehot_cols = [
+    c for c in feature_columns if c.startswith("Antibiotic_")
+]
+
+# -------------------------------
+# Page layout
+# -------------------------------
 st.set_page_config(page_title="Degradation rate prediction", layout="centered")
 st.title("🧪 Degradation rate prediction system")
 st.markdown("---")
@@ -36,7 +48,7 @@ st.sidebar.header("Please enter parameters")
 # -------------------------------
 inputs = {}
 
-# 显示缩写
+# 显示抗生素缩写（ERY, SM, ...）
 inputs["Antibiotic"] = st.sidebar.selectbox(
     "Antibiotic",
     options=sorted(antibiotic_map.keys())
@@ -68,15 +80,15 @@ predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 # Prediction
 # -------------------------------
 if predict_btn:
-    # 创建输入矩阵
+    # 初始化特征矩阵（与训练完全一致）
     X = pd.DataFrame(0.0, index=[0], columns=feature_columns)
 
-    # 填充抗生素 one-hot 列
-    onehot_str = antibiotic_map[inputs["Antibiotic"]]  # e.g., "1000000000"
+    # 抗生素 one-hot 填充
+    onehot_str = antibiotic_map[inputs["Antibiotic"]]  # e.g. "1000000000"
     for col, bit in zip(antibiotic_onehot_cols, onehot_str):
-        X.loc[0, col] = float(bit)  # 转成 0/1
+        X.loc[0, col] = int(bit)
 
-    # 填充其他数值特征
+    # 连续变量
     X.loc[0, "pH"]                  = inputs["pH"]
     X.loc[0, "Water content (%)"]   = inputs["Water content(%)"]
     X.loc[0, "m (g)"]               = inputs["m(g)"]
@@ -90,8 +102,10 @@ if predict_btn:
     pred = model.predict(X.values)[0]
     pred_percent = pred * 100
 
-    # 显示结果
-    st.markdown(f"### ✅ Predicted Degradation rate: **{pred_percent:.2f}%**")
+    # 展示结果
+    st.markdown(
+        f"### ✅ Predicted Degradation rate: **{pred_percent:.2f}%**"
+    )
 
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
