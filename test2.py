@@ -75,6 +75,7 @@ if predict_btn:
     X = pd.DataFrame(0.0, index=[0], columns=feature_columns)
     X.loc[0, "Antibiotic_encoded"] = float(antibiotic_map[inputs["Antibiotic"]])
 
+
     # 其他数值特征
     X.loc[0, "pH"]                  = inputs["pH"]
     X.loc[0, "Water content(%)"]    = inputs["Water content(%)"]
@@ -82,8 +83,8 @@ if predict_btn:
     X.loc[0, "T(°C)"]               = inputs["T(°C)"]
     X.loc[0, "V(L)"]                = inputs["V(L)"]
     X.loc[0, "t(min)"]              = inputs["t(min)"]
-    X.loc[0, "Acid Conc (mol/L)"]   = inputs["HCL Conc (mol/L)"]
-    X.loc[0, "Alkali Conc (mol/L)"] = inputs["NaOH Conc (mol/L)"]
+    X.loc[0, "Acid Conc(mol/L)"]   = inputs["HCL Conc (mol/L)"]
+    X.loc[0, "Alkali Conc(mol/L)"] = inputs["NaOH Conc (mol/L)"]
 
     # 模型预测
     pred = model.predict(X.values)[0]
