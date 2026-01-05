@@ -73,9 +73,7 @@ predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 if predict_btn:
     # 创建输入 DataFrame
     X = pd.DataFrame(0.0, index=[0], columns=feature_columns)
-
-    # 抗生素列直接填入训练时对应值
-    X.loc[0, "Antibiotic_encoded"] = antibiotic_map[inputs["Antibiotic"]]  # 字符串形式或 float
+    X.loc[0, "Antibiotic_encoded"] = float(antibiotic_map[inputs["Antibiotic"]])
 
     # 其他数值特征
     X.loc[0, "pH"]                  = inputs["pH"]
