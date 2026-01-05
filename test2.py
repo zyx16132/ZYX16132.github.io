@@ -65,20 +65,17 @@ inputs["t(min)"]              = num_input("t(min)", 0.0, 480.0, 64.59)
 inputs["HCL Conc (mol/L)"]    = num_input("HCL Conc (mol/L)", 0.0, 0.6, 0.06)
 inputs["NaOH Conc (mol/L)"]   = num_input("NaOH Conc (mol/L)", 0.0, 0.6, 0.01)
 
-# ===============================
-# 预测按钮
-# ===============================
 predict_btn = st.sidebar.button("🔍 Predict degradation rate")
 
 if predict_btn:
     # 创建输入 DataFrame
     X = pd.DataFrame(0.0, index=[0], columns=feature_columns)
 
-    # 直接把抗生素第三列原始值赋给模型输入列
+    # **这里直接把字符串或数值形式赋值给模型的抗生素列**
     antibiotic_col = [c for c in feature_columns if c.startswith("Antibiotic_")][0]
-    X.loc[0, antibiotic_col] = float(antibiotic_map[inputs["Antibiotic"]])  # 字符串转 float
+    X.loc[0, antibiotic_col] = float(antibiotic_map[inputs["Antibiotic"]])  # 转成 float
 
-    # 其他数值特征
+
     X.loc[0, "pH"]                  = inputs["pH"]
     X.loc[0, "Water content (%)"]   = inputs["Water content(%)"]
     X.loc[0, "m (g)"]               = inputs["m(g)"]
@@ -88,7 +85,7 @@ if predict_btn:
     X.loc[0, "Acid Conc (mol/L)"]   = inputs["HCL Conc (mol/L)"]
     X.loc[0, "Alkali Conc (mol/L)"] = inputs["NaOH Conc (mol/L)"]
 
-    # 模型预测
+
     pred = model.predict(X.values)[0]
     pred_percent = pred * 100
 
